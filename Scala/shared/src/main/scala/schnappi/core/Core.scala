@@ -1,4 +1,4 @@
-package AttrT
+package schnappi.core
 
 import scala.collection.immutable.HashMap
 import scala.language.implicitConversions
@@ -730,7 +730,7 @@ object Cores {
   }
 
   private val Universe0: Type = Type(Universe(), Attrs.Base.upper)
-  private[AttrT] val UniverseInfinite: Type = Universe0.typeInType
+  private[core] val UniverseInfinite: Type = Universe0.typeInType
   private val Universe1: Type = Universe0.upperUniverse
   private val Kind0: Type = Type(Kind(), Attrs.Base.upper)
   private val KindInfinite: Type = Kind0.typeInType

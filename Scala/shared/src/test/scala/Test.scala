@@ -1,6 +1,5 @@
 import org.scalatest.FunSuite
-import AttrT._
-import AttrT.Exps._
+import schnappi.core._
 object Test extends FunSuite {
   test("basic") {
   }
