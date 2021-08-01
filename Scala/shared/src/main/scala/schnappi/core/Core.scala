@@ -351,48 +351,48 @@ final case class AttrLevel_Known(level: Core) extends AttrLevel {
   }
 }
 
-sealed trait AttrSize extends Attr {
-  def subst(s: Subst): AttrSize = this match {
-    case AttrSize_Known(x) => AttrSize_Known(x.subst(s))
-    case other@(AttrSize_Infinite() | AttrSize_UnknownFinite()) => other
+sealed trait AttriSize extends Attr {
+  def subst(s: Subst): AttriSize = this match {
+    case AttriSize_Known(x) => AttriSize_Known(x.subst(s))
+    case other@(AttriSize_Infinite() | AttriSize_UnknownFinite()) => other
   }
 
-  def merge(other: AttrSize): AttrSize = (this, other) match {
-    case (_, AttrSize_Infinite()) | (AttrSize_Infinite(), _) => AttrSize_Infinite()
-    case (_, AttrSize_UnknownFinite()) | (AttrSize_UnknownFinite(), _) => AttrSize_UnknownFinite()
-    case (AttrSize_Known(x), AttrSize_Known(y)) => mergeTwoNat(x, y) match {
-      case Some(r) => AttrSize_Known(r)
-      case None => AttrSize_UnknownFinite()
+  def merge(other: AttriSize): AttriSize = (this, other) match {
+    case (_, AttriSize_Infinite()) | (AttriSize_Infinite(), _) => AttriSize_Infinite()
+    case (_, AttriSize_UnknownFinite()) | (AttriSize_UnknownFinite(), _) => AttriSize_UnknownFinite()
+    case (AttriSize_Known(x), AttriSize_Known(y)) => mergeTwoNat(x, y) match {
+      case Some(r) => AttriSize_Known(r)
+      case None => AttriSize_UnknownFinite()
     }
   }
 
-  def succ: AttrSize = this match {
-    case AttrSize_Infinite() | AttrSize_UnknownFinite() => this
-    case AttrSize_Known(x) => AttrSize_Known(Cores.Succ(x))
+  def succ: AttriSize = this match {
+    case AttriSize_Infinite() | AttriSize_UnknownFinite() => this
+    case AttriSize_Known(x) => AttriSize_Known(Cores.Succ(x))
   }
 
-  def getPlainSubtype(context: Context): Maybe[AttrSize] = this match {
-    case AttrSize_Infinite() | AttrSize_UnknownFinite() => Right(this)
-    case AttrSize_Known(x) => x.reducingMatch(context, {
-      case Cores.Succ(s) => Right(AttrSize_Known(s))
+  def getPlainSubtype(context: Context): Maybe[AttriSize] = this match {
+    case AttriSize_Infinite() | AttriSize_UnknownFinite() => Right(this)
+    case AttriSize_Known(x) => x.reducingMatch(context, {
+      case Cores.Succ(s) => Right(AttriSize_Known(s))
       case _ => Left(???)
     })
   }
 }
 
-object AttrSize {
-  val Base = AttrSize_Known(Cores.Zero())
+object AttriSize {
+  val Base = AttriSize_Known(Cores.Zero())
 }
 
-final case class AttrSize_UnknownFinite() extends AttrSize
+final case class AttriSize_UnknownFinite() extends AttriSize
 
-final case class AttrSize_Infinite() extends AttrSize
+final case class AttriSize_Infinite() extends AttriSize
 
-final case class AttrSize_Known(size: Core) extends AttrSize {
+final case class AttriSize_Known(size: Core) extends AttriSize {
   override def scan: List[Core] = List(size)
 
   override def alpha_beta_eta_equals(other: Attr, map: AlphaMapping): Boolean = other match {
-    case AttrSize_Known(otherSize) => size.alpha_beta_eta_equals(otherSize, map)
+    case AttriSize_Known(otherSize) => size.alpha_beta_eta_equals(otherSize, map)
     case _ => false
   }
 }
@@ -489,7 +489,7 @@ final case class AttrDiverge_Yes() extends AttrDiverge
 
 final case class AttrDiverge_No() extends AttrDiverge
 
-final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfUsage: AttrSelfUsage, assumptions: AttrAssumptions, diverge: AttrDiverge) {
+final case class Attrs(level: AttrLevel, size: AttriSize, usage: AttrUsage, selfUsage: AttrSelfUsage, assumptions: AttrAssumptions, diverge: AttrDiverge) {
   def scan: List[Core] = level.scan ++ size.scan ++ usage.scan ++ selfUsage.scan ++ assumptions.scan ++ diverge.scan
 
   def subst(s: Subst): Attrs = Attrs(level.subst(s), size.subst(s), usage.subst(s), selfUsage.subst(s), assumptions.subst(s), diverge.subst(s))
@@ -520,11 +520,11 @@ final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfU
 
   final def alpha_beta_eta_equals(other: Attrs): Boolean = this.alpha_beta_eta_equals(other, AlphaMapping.Empty)
 
-  def upper: Attrs = Attrs(level.upper, AttrSize.Base, selfUsage.upper, AttrSelfUsage.Base, assumptions, AttrDiverge.Base)
+  def upper: Attrs = Attrs(level.upper, AttriSize.Base, selfUsage.upper, AttrSelfUsage.Base, assumptions, AttrDiverge.Base)
 
   def erased: Attrs = Attrs(level, size, AttrUsage_Erased(), selfUsage, assumptions, diverge)
 
-  def sized(size: Core): Attrs = Attrs(level, AttrSize_Known(size), usage, selfUsage, assumptions, diverge)
+  def sized(size: Core): Attrs = Attrs(level, AttriSize_Known(size), usage, selfUsage, assumptions, diverge)
 
   def sizeSucc: Attrs = Attrs(level, size.succ, usage, selfUsage, assumptions, diverge)
 
@@ -532,7 +532,7 @@ final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfU
 }
 
 object Attrs {
-  val Base = Attrs(AttrLevel.Base, AttrSize.Base, AttrUsage.Base, AttrSelfUsage.Base, AttrAssumptions.Base, AttrDiverge.Base)
+  val Base = Attrs(AttrLevel.Base, AttriSize.Base, AttrUsage.Base, AttrSelfUsage.Base, AttrAssumptions.Base, AttrDiverge.Base)
 }
 
 final case class Type(universe: Core, attrs: Attrs) extends Core {
@@ -862,11 +862,11 @@ object Cores {
         argT <- arg0.evalToType(context)
         _ <- t.checkWeakSubtype(argT)
         recSize <- argT.attrs.size match {
-          case AttrSize_Known(x) => x.reducingMatch(context, {
+          case AttriSize_Known(x) => x.reducingMatch(context, {
             case Succ(x) => Right(x)
             case _ => Left(???)
           })
-          case AttrSize_UnknownFinite() | AttrSize_Infinite() => Left(???)
+          case AttriSize_UnknownFinite() | AttriSize_Infinite() => Left(???)
         }
         innerContext = context.updated(arg, argT).updated(id, argT, arg).setRecSize(recSize)
         resultT <- result0.evalToType(innerContext)
@@ -977,7 +977,7 @@ object Cores {
     } yield (rec.id.x, kind, rec.x)
 
     def checkRec(context: Context, kind: Type, x: Core): Maybe[Unit] = x.check(context, kind).flatMap(_ => if (isRecursive(context, x)) {
-      if (kind.attrs.size == AttrSize_UnknownFinite()) {
+      if (kind.attrs.size == AttriSize_UnknownFinite()) {
         Left(ErrUnknownFiniteRec(context, x, kind))
         // other parts will handle finite and infinite correctly
       } else {
