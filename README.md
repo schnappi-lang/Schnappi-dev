@@ -22,5 +22,5 @@ All attributes:
 + size
 + usage
 + usage of the type itself - Yes, you can have type information available at run time and maybe doing pattern matching on it? (not yet implemented)
-+ assumptions
++ assumptions - only erased values can be assumed
 + diverge or not

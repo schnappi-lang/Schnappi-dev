@@ -446,9 +446,9 @@ final case class AttrSelfUsage_Unlimited() extends AttrSelfUsage
 final case class AttrAssumptions(assumptions: Set[Type]) extends Attr {
   override def scan: List[Core] = assumptions.toList
 
-  def subst(s: Subst): AttrAssumptions = AttrAssumptions.safeApply(assumptions.map(_.subst(s)))
+  def subst(s: Subst): AttrAssumptions = AttrAssumptions.nodupApply(assumptions.map(_.subst(s)))
 
-  def merge(other: AttrAssumptions): AttrAssumptions = AttrAssumptions.safeApply(assumptions.union(other.assumptions))
+  def merge(other: AttrAssumptions): AttrAssumptions = AttrAssumptions.nodupApply(assumptions.union(other.assumptions))
 
   override def alpha_beta_eta_equals(other: Attr, map: AlphaMapping): Boolean = other match {
     case AttrAssumptions(otherAssumptions) if assumptions.size == otherAssumptions.size => {
@@ -467,9 +467,21 @@ object AttrAssumptions {
     case x :: xs => x :: distinct(xs.filterNot(x.alpha_beta_eta_equals(_)))
   }
 
-  def safeApply(assumptions: Set[Type]): AttrAssumptions = new AttrAssumptions(Set.empty.concat(distinct(assumptions.toList).map(_.erased)))
+  private def checkErased(assumptions: Set[Type]): Boolean = assumptions.forall(_.attrs.usage == AttrUsage_Erased())
 
-  def apply(assumptions: Set[Type]): AttrAssumptions = safeApply(assumptions)
+  private def nodupApply(assumptions: Set[Type]): AttrAssumptions = new AttrAssumptions(Set.empty.concat(distinct(assumptions.toList).map(_.erased)))
+
+  def apply(assumptions: Set[Type]): AttrAssumptions = if (checkErased(assumptions)) {
+    nodupApply(assumptions)
+  } else {
+    throw new IllegalArgumentException("non erased assumption!")
+  }
+
+  def safeApply(assumptions: Set[Type]): Maybe[AttrAssumptions] = if (checkErased(assumptions)) {
+    Right(nodupApply(assumptions))
+  } else {
+    Left(???)
+  }
 }
 
 sealed trait AttrDiverge extends Attr {
