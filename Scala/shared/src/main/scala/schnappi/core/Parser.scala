@@ -8,6 +8,12 @@ object Parser {
   private[this] val whitespaceChar: P[Unit] = P.charIn(" \t\r\n").void
   private[this] val whitespaces: P[Unit] = whitespaceChar.rep.void
   private[this] val whitespacesMaybe: Parser0[Unit] = (whitespaces ?).void
+
+  // [\u4e00-\u9fa5] is Chinese chars
+  private val atomRegex = "(\\w|[-？?/*:><]|[\u4e00-\u9fa5])+".r
+
+  private def isAtomChar(c: Char) = atomRegex.matches(c.toString)
+
   val parser: P[Exp] = P.recursive[Exp] { parser =>
     val whitespacesParser: P[Exp] = whitespaces *> parser
 
@@ -27,8 +33,10 @@ object Parser {
 
     def f2(tag: String): P[(Exp, Exp)] = (parser ~ whitespacesParser).surroundedBy(whitespacesMaybe).between(P.string("(" + tag), P.string(")"))
 
-    val varp: P[Var] = P.string("$") *> ???
-    val quotep: P[Quote] = P.string("'") *> ???
+    val identifer: P[String] = P.charsWhile(isAtomChar)
+
+    val varp: P[Var] = (P.string("$") *> identifer).map(x => Var(Symbol(x)))
+    val quotep: P[Quote] = (P.string("'") *> identifer).map(x => Quote(Symbol(x)))
 
     P.oneOf(List(
       P.string("zero").as(Zero()),
