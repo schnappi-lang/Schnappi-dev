@@ -11,6 +11,7 @@ final class Test extends AnyFunSpec {
     it("works") {
       assert(infer("(succ zero)").isRight)
       assert(infer("'a").isRight)
+      //assert(infer("(the (makeKind nat) (succ (succ zero)))").isRight)
     }
   }
 }

@@ -45,7 +45,7 @@ object Parser {
       P.string("universe").as(Universe()),
       P.string("kind").as(Kind()),
       f1("makeKind").map(MakeKind(_)),
-      f2("attrSize").map(AttrSize(_, _)),
+      f2("withAttrSize").map(WithAttrSize(_, _)),
       f2("cons").map(Cons(_, _)),
       f1("car").map(Car(_)),
       f1("cdr").map(Cdr(_)),
