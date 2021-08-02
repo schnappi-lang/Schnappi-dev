@@ -40,25 +40,36 @@ object Parser {
 
     P.oneOf(List(
       P.string("zero").as(Zero()),
-      f1("succ").map(Succ),
+      f1("succ").map(Succ(_)),
       P.string("nat").as(Nat()),
       P.string("universe").as(Universe()),
       P.string("kind").as(Kind()),
-      f1("makeKind").map(MakeKind),
-      f2("attrSize").map(AttrSize),
-      f2("cons").map(Cons),
-      f1("car").map(Car),
-      f1("cdr").map(Cdr),
-      taggedList3(P.string("sigma"), parser, varp, parser).map(Sigma),
-      taggedList2(P.string("lambda"), varp, parser).map(Lambda),
-      taggedList3(P.string("pi"), parser, varp, parser).map(Pi),
-      taggedList3(P.string("recPi"), parser, varp, parser).map(RecPi),
-      taggedList3(P.string("rec"), varp, parser, parser).map(Rec),
-      taggedList2(P.string("recs"), listof(list3(varp, parser, parser)), parser).map(x => Recs(Set.empty.concat(x._1.map(Rec)), x._2)),
-      f2("apply").map(Apply),
-      f2("the").map(The),
+      f1("makeKind").map(MakeKind(_)),
+      f2("attrSize").map(AttrSize(_, _)),
+      f2("cons").map(Cons(_, _)),
+      f1("car").map(Car(_)),
+      f1("cdr").map(Cdr(_)),
+      taggedList3(P.string("sigma"), parser, varp, parser).map(Sigma(_, _, _)),
+      taggedList2(P.string("lambda"), varp, parser).map(Lambda(_, _)),
+      taggedList3(P.string("pi"), parser, varp, parser).map(Pi(_, _, _)),
+      taggedList3(P.string("recPi"), parser, varp, parser).map(RecPi(_, _, _)),
+      taggedList3(P.string("rec"), varp, parser, parser).map(Rec(_, _, _)),
+      taggedList2(P.string("recs"), listof(list3(varp, parser, parser)), parser).map(x => Recs(Set.empty.concat(x._1.map(Rec(_, _, _))), x._2)),
+      f2("apply").map(Apply(_, _)),
+      f2("the").map(The(_, _)),
       quotep,
       P.string("atom").as(Atom()),
     ))
   }
+  val fullParser: P[Exp] = parser <* whitespacesMaybe
+
+  def parse(x: String): Either[P.Error, Exp] = fullParser.parseAll(x)
+
+  def parseThrows(x: String): Exp = parse(x) match {
+    case Right(x) => x
+    case Left(e) => throw new IllegalArgumentException(e.toString)
+  }
 }
+
+def parse(x: String) = Parser.parse(x)
+def parseThrows(x: String) = Parser.parseThrows(x)
