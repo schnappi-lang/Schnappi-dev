@@ -1,6 +1,16 @@
-import org.scalatest.FunSuite
+import org.scalatest._
+import flatspec._
+import matchers._
+import org.scalatest.funspec.AnyFunSpec
 import schnappi.core._
-object Test extends FunSuite {
-  test("basic") {
+
+def infer(x:String) = parseThrows(x).toCore.infer
+
+final class Test extends AnyFunSpec {
+  describe("basic") {
+    it("works") {
+      assert(infer("(succ zero)").isRight)
+      assert(infer("'a").isRight)
+    }
   }
 }
