@@ -872,6 +872,7 @@ object Cores {
         resultT <- result0.evalToType(innerContext)
         _ <- t.checkPlainSubtype(resultT)
         _ <- body.check(innerContext, resultT)
+        _ <- checkBindUsage(innerContext, arg, body)
       } yield ()
       case RecPi(arg0, id, result0) => for {
         _ <- Recs.checkRec(context, t, this)
@@ -888,6 +889,7 @@ object Cores {
         resultT <- result0.evalToType(innerContext)
         _ <- t.checkPlainSubtype(resultT)
         _ <- body.check(innerContext, resultT)
+        _ <- checkBindUsage(innerContext, arg, body)
       } yield ()
       case wrong => Left(ErrExpected(context, "Pi", this, wrong))
     })
@@ -1098,4 +1100,5 @@ object Cores {
     override def evalToType(context: Context): Maybe[Type] = Right(Type(this))
   }
 
+  private def checkBindUsage(context: Context, x: Var, body: Core): Maybe[Unit] = Right(()) // todo
 }
