@@ -282,10 +282,16 @@ sealed trait Core {
 
   private def post_check[T](context: Context, t: Type, x: MaybeSt[T]): MaybeSt[T] = x match {
     case e@MaybeStErr(_) => e
-    case MaybeStOk(st, v) => (t.isErased, t.isSelfErased) match {
+    case res@MaybeStOk(st, v) => (t.isErased, t.isSelfErased) match {
       case (true, true) => MaybeStOk(Set(), v)
-      case (false, true) => ???
-      case _ => ???
+      case (false, true) => res
+      case (true, false) => for {
+        _ <- t.infer(context)
+      } yield v
+      case (false, false) => for {
+        _ <- res
+        _ <- t.infer(context)
+      } yield v
     }
   }
 
@@ -684,7 +690,9 @@ final case class Type(universe: Core, attrs: Attrs) extends Core {
 
   def attrsMap(f: Attrs => Attrs): Type = Type(universe, f(attrs))
 
-  override def impl_infer(context: Context): MaybeSt[Type] = Right(upperUniverse)
+  override def impl_infer(context: Context): MaybeSt[Type] = for {
+    _ <- universe.check(context, Cores.UniverseInfinite)
+  } yield upperUniverse
 
   def erased: Type = Type(universe, attrs.erased)
 
