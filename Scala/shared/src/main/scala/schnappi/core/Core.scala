@@ -144,6 +144,7 @@ object MaybeStRight {
 }
 
 object UniqueIdentifier {
+  // todo: add this to MaybeSt to make the checker purely functional
   private var count: UniqueIdentifier = 0
 
   def gen: UniqueIdentifier = this.synchronized {
