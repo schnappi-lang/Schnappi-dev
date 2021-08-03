@@ -24,6 +24,7 @@ All attributes:
 + usage of the type itself - Yes, you can have type information available at run time and maybe doing pattern matching on it? (not yet implemented)
 + assumptions - only erased values can be assumed
 + diverge or not
++ (todo) no-check - not fully checked - equals to the assumption `t: Type, x: t, u: Type -> x: u`
 
 ## Full
 
