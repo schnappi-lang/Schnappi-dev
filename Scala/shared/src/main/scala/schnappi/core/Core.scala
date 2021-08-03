@@ -271,7 +271,7 @@ sealed trait Core {
   def reduce(context: Context): Core = this
   // def reduce(context: Context): Maybe[Context, Core] = ???
 
-  def infer(context: Context): MaybeSt[Type] = {
+  def impl_infer(context: Context): MaybeSt[Type] = {
     val next = this.reduce(context)
     if (next == this) {
       Left(ErrCantInfer(context, this))
@@ -280,9 +280,23 @@ sealed trait Core {
     }
   }
 
+  private def post_check[T](context: Context, t: Type, x: MaybeSt[T]): MaybeSt[T] = x match {
+    case e@MaybeStErr(_) => e
+    case MaybeStOk(st, v) => (t.isErased, t.isSelfErased) match {
+      case (true, true) => MaybeStOk(Set(), v)
+      case (false, true) => ???
+      case _ => ???
+    }
+  }
+
+  final def infer(context: Context): MaybeSt[Type] = impl_infer(context) match {
+    case e@MaybeStErr(_) => e
+    case res@MaybeStOk(_, t) => post_check(context, t, res)
+  }
+
   final def infer: MaybeSt[Type] = this.infer(Context.Empty)
 
-  def check(context: Context, t: Type): MaybeSt[Unit] = this.infer(context) match {
+  def impl_check(context: Context, t: Type): MaybeSt[Unit] = this.infer(context) match {
     case MaybeStOk(st, t0) => if (t.subsetOrEqual(t0)) {
       MaybeStOk(st, ())
     } else {
@@ -296,6 +310,11 @@ sealed trait Core {
         next.check(context, t)
       }
     }
+  }
+
+  final def check(context: Context, t: Type): MaybeSt[Unit] = impl_check(context, t) match {
+    case e@MaybeStErr(_) => e
+    case res@MaybeStOk(_, _) => post_check(context, t, res)
   }
 
   final def check(t: Type): MaybeSt[Unit] = this.check(Context.Empty, t)
@@ -358,11 +377,11 @@ sealed trait Core {
 }
 
 sealed trait CoreUniverse extends Core {
-  final override def infer(context: Context): MaybeSt[Type] = this.evalToType(context).map(_.upperUniverse)
+  final override def impl_infer(context: Context): MaybeSt[Type] = this.evalToType(context).map(_.upperUniverse)
 }
 
 sealed trait CoreKind extends Core {
-  final override def infer(context: Context): MaybeSt[Type] = this.evalToType(context).map(_.upperUniverse)
+  final override def impl_infer(context: Context): MaybeSt[Type] = this.evalToType(context).map(_.upperUniverse)
 }
 
 // is neutral if appers in normal form
@@ -665,7 +684,7 @@ final case class Type(universe: Core, attrs: Attrs) extends Core {
 
   def attrsMap(f: Attrs => Attrs): Type = Type(universe, f(attrs))
 
-  override def infer(context: Context): MaybeSt[Type] = Right(upperUniverse)
+  override def impl_infer(context: Context): MaybeSt[Type] = Right(upperUniverse)
 
   def erased: Type = Type(universe, attrs.erased)
 
@@ -674,6 +693,16 @@ final case class Type(universe: Core, attrs: Attrs) extends Core {
   def typeInType: Type = Type(universe, attrs.typeInType)
 
   def sizeSucc: Type = Type(universe, attrs.sizeSucc)
+
+  def isErased: Boolean = attrs.usage match {
+    case AttrUsage_Erased() => true
+    case AttrUsage_Unlimited() | AttrUsage_Once() => false
+  }
+
+  def isSelfErased: Boolean = attrs.selfUsage match {
+    case AttrSelfUsage_Erased() => true
+    case AttrSelfUsage_Unlimited() | AttrSelfUsage_Once() => false
+  }
 }
 
 object Type {
@@ -811,7 +840,7 @@ object Cores {
 
     override def subst(s: Subst): Core = s.getOrElse(this.v, this)
 
-    override def infer(context: Context): MaybeSt[Type] = context.getType(v.x) match {
+    override def impl_infer(context: Context): MaybeSt[Type] = context.getType(v.x) match {
       case Some(t) => for {
         _ <- Recs.checkRec(context, t, this)
       } yield t
@@ -833,7 +862,7 @@ object Cores {
 
     override def subst(s: Subst): Zero = this
 
-    override def infer(context: Context): MaybeSt[Type] = Right(NatZeroT)
+    override def impl_infer(context: Context): MaybeSt[Type] = Right(NatZeroT)
   }
 
   final case class Succ(x: Core) extends Core {
@@ -841,7 +870,7 @@ object Cores {
 
     override def subst(s: Subst): Succ = Succ(x.subst(s))
 
-    override def infer(context: Context): MaybeSt[Type] = for {
+    override def impl_infer(context: Context): MaybeSt[Type] = for {
       t <- x.infer(context)
     } yield t.sizeSucc
   }
@@ -886,7 +915,7 @@ object Cores {
       Right(Type(x, Attrs.Base))
     })
 
-    override def check(context: Context, t: Type): MaybeSt[Unit] = if (t.universe.alpha_beta_eta_equals(Kind())) {
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = if (t.universe.alpha_beta_eta_equals(Kind())) {
       x.check(context, Type(Universe(), t.attrs))
     } else {
       Left(ErrCheckFailed(context, t, this, Kind()))
@@ -898,7 +927,7 @@ object Cores {
 
     override def subst(s: Subst): WithAttrSize = WithAttrSize(size.subst(s), kind.subst(s))
 
-    override def check(context: Context, t: Type): MaybeSt[Unit] = size.check(context, NatT) and kind.check(context, KindInfinite) and kind.check(context, t)
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = size.check(context, NatT) and kind.check(context, KindInfinite) and kind.check(context, t)
 
     override def evalToType(context: Context): MaybeSt[Type] = (size.check(context, NatT) and kind.check(context, KindInfinite)).flatMap(_ => {
       kind.evalToType(context).map(_.sized(size))
@@ -910,7 +939,7 @@ object Cores {
 
     override def subst(s: Subst): Cons = Cons(x.subst(s), y.subst(s))
 
-    override def check(context: Context, t: Type): MaybeSt[Unit] = t.universe.reducingMatch(context, {
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = t.universe.reducingMatch(context, {
       case Sigma(a, id, d) => for {
         aT <- a.evalToType(context)
         _ <- t.checkPlainSubtype(aT).l
@@ -929,7 +958,7 @@ object Cores {
 
     override def subst(s: Subst): Car = Car(x.subst(s))
 
-    override def infer(context: Context): MaybeSt[Type] = x.infer(context) flatMap {
+    override def impl_infer(context: Context): MaybeSt[Type] = x.infer(context) flatMap {
       case Type(uni, attrs) => uni.reducingMatch(context, {
         case Sigma(a, id, d) => a.evalToType(context)
         case wrong => MaybeStErr(ErrExpected(context, "Sigma", x, wrong))
@@ -942,7 +971,7 @@ object Cores {
 
     override def subst(s: Subst): Cdr = Cdr(x.subst(s))
 
-    override def infer(context: Context): MaybeSt[Type] = x.infer(context) flatMap {
+    override def impl_infer(context: Context): MaybeSt[Type] = x.infer(context) flatMap {
       case Type(uni, attrs) => uni.reducingMatch(context, {
         case Sigma(a, id, d) => a.evalToType(context).flatMap((at) => d.evalToType(context.updated(id, at)))
         case wrong => MaybeStErr(ErrExpected(context, "Sigma", x, wrong))
@@ -963,7 +992,7 @@ object Cores {
 
     override def subst(s: Subst): Lambda = Lambda(arg, body.subst(s))
 
-    override def check(context: Context, t: Type): MaybeSt[Unit] = t.universe.reducingMatch(context, {
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = t.universe.reducingMatch(context, {
       case Pi(arg0, id, result0) => for {
         _ <- Recs.checkRec(context, t, this)
         argT <- arg0.evalToType(context)
@@ -1018,9 +1047,9 @@ object Cores {
 
     private def recs = Recs(Set(this), AccessVar.gen(id))
 
-    override def check(context: Context, t: Type): MaybeSt[Unit] = recs.check(context, t)
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = recs.check(context, t)
 
-    override def infer(context: Context): MaybeSt[Type] = recs.infer(context)
+    override def impl_infer(context: Context): MaybeSt[Type] = recs.infer(context)
 
     override def reduce(context: Context): Core = recs.reduce(context)
   }
@@ -1048,12 +1077,12 @@ object Cores {
       } yield context.concat(addition)
     }
 
-    override def check(context: Context, t: Type): MaybeSt[Unit] = for {
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = for {
       ctx <- checkBindings(context)
       _ <- x.check(ctx, t)
     } yield ()
 
-    override def infer(context: Context): MaybeSt[Type] = for {
+    override def impl_infer(context: Context): MaybeSt[Type] = for {
       ctx <- checkBindings(context)
       t <- x.infer(ctx)
     } yield t
@@ -1127,7 +1156,7 @@ object Cores {
       case wrong => MaybeStErr(ErrExpected(context, "Pi", f, wrong))
     })) getOrElse this
 
-    override def infer(context: Context): MaybeSt[Type] = f.infer(context).flatMap(t => t.universe.reducingMatch(context, {
+    override def impl_infer(context: Context): MaybeSt[Type] = f.infer(context).flatMap(t => t.universe.reducingMatch(context, {
       case Pi(argT, tid, resultT) => for {
         argK <- argT.evalToType(context)
         _ <- x.check(context, argK)
@@ -1151,7 +1180,7 @@ object Cores {
 
     override def subst(s: Subst): The = The(t.subst(s), x.subst(s))
 
-    override def infer(context: Context): MaybeSt[Type] = for {
+    override def impl_infer(context: Context): MaybeSt[Type] = for {
       result <- t.evalToType(context)
       _ <- x.check(context, result)
     } yield result
@@ -1164,7 +1193,7 @@ object Cores {
 
     override def subst(s: Subst): InternalThe = InternalThe(t.subst(s), x.subst(s))
 
-    override def infer(context: Context): MaybeSt[Type] = for {
+    override def impl_infer(context: Context): MaybeSt[Type] = for {
       _ <- x.check(context, t)
     } yield t
 
@@ -1178,7 +1207,7 @@ object Cores {
 
     override def subst(s: Subst): Quote = this
 
-    override def infer(context: Context): MaybeSt[Type] = Right(AtomT)
+    override def impl_infer(context: Context): MaybeSt[Type] = Right(AtomT)
   }
 
   final case class Atom() extends Core with CoreUniverse {
