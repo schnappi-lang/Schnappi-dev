@@ -68,7 +68,15 @@ private implicit final class EitherAnd[T, U](self: Either[T, U]) {
 }
 
 // todo
-sealed trait MaybeSt[T]
+sealed trait MaybeSt[T] {
+  def flatMap[U](f: T => MaybeSt[U]): MaybeSt[U] = this match {
+    case MaybeStOk(usages1, x) => f(x) match {
+      case MaybeStOk(usages2, res) => MaybeStOk(usages1.concat(usages2), res)
+      case e@MaybeStErr(_) => e
+    }
+    case MaybeStErr(err) => MaybeStErr(err)
+  }
+}
 
 final case class MaybeStErr[T](err: Err) extends MaybeSt[T]
 
