@@ -21,7 +21,7 @@ final case class ErrExpected(context: Context, expectedType: String, x: Core, re
 
 final case class ErrExpectedV(context: Context, expectedType: String, x: Core) extends Err(s"expect $x to be $expectedType in the context $context")
 
-final case class ErrTypeUnknown(context: Context, x: Cores.Var) extends Err(s"the type of $x is unknown in the context $context")
+final case class ErrTypeUnknown(context: Context, x: Cores.AccessVar) extends Err(s"the type of $x is unknown in the context $context")
 
 final case class ErrCantEvalToType(context: Context, x: Core) extends Err(s"$x in the context $context can't be a type")
 
@@ -80,11 +80,11 @@ sealed trait MaybeSt[T] {
 
 final case class MaybeStErr[T](err: Err) extends MaybeSt[T]
 
-final case class MaybeStOk[T](notErasedUsages: List[Cores.Var], x: T) extends MaybeSt[T]
+final case class MaybeStOk[T](notErasedUsages: Set[Cores.AccessVar], x: T) extends MaybeSt[T]
 
 private implicit def maybeToMaybeSt[T](x: Maybe[T]): MaybeSt[T] = x match {
   case Left(e) => MaybeStErr(e)
-  case Right(x) => MaybeStOk(List(), x)
+  case Right(x) => MaybeStOk(Set(), x)
 }
 
 object UniqueIdentifier {
@@ -616,10 +616,12 @@ object Type {
 
 object Exps {
   final case class Var(x: Identifier) extends ExpNeu {
-    override def toCore(scope: HashMap[Identifier, VarId]): Cores.Var = scope.get(x) match {
+    def toCoreVar(scope: HashMap[Identifier, VarId]): Cores.Var = scope.get(x) match {
       case Some(v) => Cores.Var(v)
       case None => throw new Error("no definition $x")
     }
+
+    override def toCore(scope: HashMap[Identifier, VarId]): Cores.AccessVar = Cores.AccessVar.gen(this.toCoreVar(scope))
 
     def gen: Cores.Var = Cores.Var(VarId.gen(x))
   }
@@ -672,7 +674,7 @@ object Exps {
   }
 
   final case class Lambda(arg: Var, body: Exp) extends Exp {
-    override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.Lambda(arg.toCore(scope), body.toCore(scope))
+    override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.Lambda(arg.toCoreVar(scope), body.toCore(scope))
   }
 
   final case class Pi(x: Exp, id: Var, y: Exp) extends Exp {
@@ -704,7 +706,7 @@ object Exps {
 
     override def toCore(scope: HashMap[Identifier, VarId]): Core = {
       val scope0 = scope ++ bindings.map(_.id).map(x => (x.x, x.gen.x))
-      Cores.Recs(bindings.map(b => Cores.Rec(b.id.toCore(scope0), b.kind.toCore(scope0), b.x.toCore(scope0))), x.toCore(scope0))
+      Cores.Recs(bindings.map(b => Cores.Rec(b.id.toCoreVar(scope0), b.kind.toCore(scope0), b.x.toCore(scope0))), x.toCore(scope0))
     }
   }
 
@@ -732,17 +734,27 @@ private def transverse[A](xs: List[Option[A]]): Option[List[A]] = xs match {
 }
 
 object Cores {
-  final case class Var(x: VarId) extends CoreNeu {
+  final case class Var(x: VarId) {
+  }
+
+  // a Var might be checked serval times, so I invited this class for usage checking
+  final case class AccessVar(id: Option[UniqueIdentifier], v: Var) extends Core {
     override def scan: List[Core] = List()
 
-    override def subst(s: Subst): Core = s.getOrElse(this, this)
+    override def subst(s: Subst): Core = s.getOrElse(this.v, this)
 
-    override def infer(context: Context): Maybe[Type] = context.getType(x) match {
+    override def infer(context: Context): Maybe[Type] = context.getType(v.x) match {
       case Some(t) => for {
         _ <- Recs.checkRec(context, t, this)
       } yield t
       case None => Left(ErrTypeUnknown(context, this))
     }
+  }
+
+  object AccessVar {
+    def internal(x: Var): AccessVar = AccessVar(None, x)
+
+    def gen(x: Var): AccessVar = AccessVar(Some(UniqueIdentifier.gen), x)
   }
 
   private val NatZeroT: Type = Type(Nat())
@@ -888,7 +900,7 @@ object Cores {
         _ <- Recs.checkRec(context, t, this)
         argT <- arg0.evalToType(context)
         _ <- t.checkWeakSubtype(argT)
-        innerContext = context.updated(arg, argT).updated(id, argT, arg)
+        innerContext = context.updated(arg, argT).updated(id, argT, AccessVar.internal(arg))
         resultT <- result0.evalToType(innerContext)
         _ <- t.checkPlainSubtype(resultT)
         _ <- body.check(innerContext, resultT)
@@ -904,7 +916,7 @@ object Cores {
           })
           case AttrSize_UnknownFinite() | AttrSize_Infinite() => Left(???)
         }
-        innerContext = context.updated(arg, argT).updated(id, argT, arg).setRecSize(recSize)
+        innerContext = context.updated(arg, argT).updated(id, argT, AccessVar.internal(arg)).setRecSize(recSize)
         resultT <- result0.evalToType(innerContext)
         _ <- t.checkPlainSubtype(resultT)
         _ <- body.check(innerContext, resultT)
@@ -936,7 +948,7 @@ object Cores {
 
     override def subst(s: Subst): Rec = Rec(id, kind.subst(s), x.subst(s))
 
-    private def recs = Recs(Set(this), id)
+    private def recs = Recs(Set(this), AccessVar.gen(id))
 
     override def check(context: Context, t: Type): Maybe[Unit] = recs.check(context, t)
 
@@ -990,7 +1002,7 @@ object Cores {
 
   object Recs {
     private def extract(context: Context, x: Core): List[Core] = x match {
-      case v: Var => context.getValue(v).toList
+      case v: AccessVar => context.getValue(v.v).toList
       case other => other.scan
     }
 
