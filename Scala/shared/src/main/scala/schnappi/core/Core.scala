@@ -540,6 +540,8 @@ final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfU
 
   def unknownFiniteSized: Attrs = Attrs(level, AttrSize_UnknownFinite(), usage, selfUsage, assumptions, diverge)
 
+  def infiniteSized: Attrs = Attrs(level, AttrSize_Infinite(), usage, selfUsage, assumptions, diverge)
+
   def sizeSucc: Attrs = Attrs(level, size.succ, usage, selfUsage, assumptions, diverge)
 
   def typeInType: Attrs = Attrs(AttrLevel_UniverseInUniverse(), size, usage, selfUsage, assumptions, diverge)
@@ -744,11 +746,10 @@ object Cores {
     } yield t.sizeSucc
   }
 
-  private val Universe0: Type = Type(Universe(), Attrs.Base.upper)
-  private[core] val UniverseInfinite: Type = Universe0.typeInType
-  private val Universe1: Type = Universe0.upperUniverse
-  private val Kind0: Type = Type(Kind(), Attrs.Base.upper)
-  private val KindInfinite: Type = Kind0.typeInType
+  private val Universe0Size0: Type = Type(Universe(), Attrs.Base.upper)
+  private[core] val UniverseInfinite: Type = Universe0Size0.attrsMap(_.infiniteSized).typeInType
+  private val Kind0Size0: Type = Type(Kind(), Attrs.Base.upper)
+  private val KindInfinite: Type = Kind0Size0.attrsMap(_.infiniteSized).typeInType
 
   final case class Nat() extends Core with CoreUniverse {
     override def scan: List[Core] = List()
@@ -764,7 +765,7 @@ object Cores {
 
     override def subst(s: Subst): Universe = this
 
-    override def evalToType(context: Context): Maybe[Type] = Right(Universe0)
+    override def evalToType(context: Context): Maybe[Type] = Right(Universe0Size0)
   }
 
   // type with attributes
@@ -773,7 +774,7 @@ object Cores {
 
     override def subst(s: Subst): Kind = this
 
-    override def evalToType(context: Context): Maybe[Type] = Right(Kind0)
+    override def evalToType(context: Context): Maybe[Type] = Right(Kind0Size0)
   }
 
   final case class MakeKind(x: Core) extends Core with CoreKind {
