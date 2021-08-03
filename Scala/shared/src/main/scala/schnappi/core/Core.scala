@@ -124,6 +124,16 @@ private implicit class MaybeToMaybeSt[T](x: Either[Err, T]) {
   }
 }
 
+private implicit class MaybeStTraverse[T](x: List[MaybeSt[T]]) {
+  def traverse: MaybeSt[List[T]] = x match {
+    case Nil => MaybeSt.pure(Nil)
+    case x :: xs => for {
+      x1 <- x
+      xs1 <- xs.traverse
+    } yield x1 :: xs1
+  }
+}
+
 object MaybeStRight {
   def unapply[T](x: MaybeSt[T]): Option[T] = x match {
     case MaybeStOk(_, v) => Some(v)
@@ -1032,20 +1042,10 @@ object Cores {
       def step(stepContext: Context) = context.concat(bindings.toList.map(Recs.checkRec(stepContext, _)).map(_.toOption).flatten)
 
       val innerContext = step(step(step(step(step(step(step(step(step(step(step(step(step(step(step(step(innerContext0))))))))))))))))
-      val addition0 = bindings.toList.map(Recs.checkRec(innerContext, _))
-      val addition = addition0.map(_.toOption).flatten
-      val failed = addition0.collect {
-        case MaybeStErr(e) => e
-      }
-      if (failed.isEmpty) {
-        if (addition.length != bindings.size) {
-          throw new IllegalStateException("addition.length!=bindings.size")
-        }
-        // todo: use st of addition
-        MaybeSt.pure(context.concat(addition))
-      } else {
-        MaybeStErr(ErrRecs(context, failed))
-      }
+
+      for {
+        addition <- bindings.toList.map(Recs.checkRec(innerContext, _)).traverse
+      } yield context.concat(addition)
     }
 
     override def check(context: Context, t: Type): MaybeSt[Unit] = for {
@@ -1094,13 +1094,13 @@ object Cores {
             resultK <- result.evalToType(context.updated(argId, argK))
             _ <- if (resultK.attrs.diverge == AttrDiverge_Yes()) Right(()) else Left(ErrNotDivergePiRec(context, x, kind))
           } yield ()
-          case _: CoreNeu => Left(ErrUnknownTypeRec(context, x, kind))
-          case _: RecPi => Right(())
-          case _ => Right(())
+          case _: CoreNeu => MaybeStErr(ErrUnknownTypeRec(context, x, kind))
+          case _: RecPi => MaybeSt.pure(())
+          case _ => MaybeSt.pure(())
         }
       }
     } else {
-      Right(())
+      MaybeSt.pure(())
     })
   }
 

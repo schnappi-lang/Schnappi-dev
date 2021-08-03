@@ -14,15 +14,13 @@ lazy val root = project.in(file(".")).
     publishLocal := {},
   )
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.9" % Test
-libraryDependencies += "org.typelevel" %%% "cats-parse" % "0.3.4"
-
 lazy val cross = crossProject(JSPlatform, JVMPlatform).withoutSuffixFor(JVMPlatform).in(file(".")).
   settings(
     name := "foo",
     version := "0.1-SNAPSHOT",
     libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.9" % Test,
     libraryDependencies += "org.typelevel" %%% "cats-parse" % "0.3.4",
+    //libraryDependencies += "org.typelevel" %%% "cats-core" % "2.6.1",
   ).
   jvmSettings(
     // Add JVM-specific settings here
