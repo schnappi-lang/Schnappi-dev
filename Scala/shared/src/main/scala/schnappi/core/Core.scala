@@ -67,6 +67,18 @@ private implicit final class EitherAnd[T, U](self: Either[T, U]) {
   }
 }
 
+// todo
+sealed trait MaybeSt[T]
+
+final case class MaybeStErr[T](err: Err) extends MaybeSt[T]
+
+final case class MaybeStOk[T](notErasedUsages: List[Cores.Var], x: T) extends MaybeSt[T]
+
+private implicit def maybeToMaybeSt[T](x: Maybe[T]): MaybeSt[T] = x match {
+  case Left(e) => MaybeStErr(e)
+  case Right(x) => MaybeStOk(List(), x)
+}
+
 object UniqueIdentifier {
   private var count: UniqueIdentifier = 0
 
