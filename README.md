@@ -18,12 +18,12 @@ Attributes mainly apply to values, but there is a exception.
 
 All attributes:
 
-+ level
-+ size
-+ usage
++ level (universe hierarchy)
++ size (sized types in agda)
++ usage (quantity in Idris2)
 + usage of the type itself - Yes, you can have type information available at run time and maybe doing pattern matching on it? (not yet implemented)
-+ assumptions - only erased values can be assumed
-+ diverge or not
++ assumptions (Axiom in Coq) - only erased values can be assumed
++ diverge or not (inspired by Koka)
 + (todo) no-check - not fully checked - equals to the assumption `t: Type, x: t, u: Type -> x: u` - now then we have yet another typescript?
 
 ## Full
