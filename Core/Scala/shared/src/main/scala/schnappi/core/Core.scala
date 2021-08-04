@@ -646,7 +646,7 @@ final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfU
 
   final def alpha_beta_eta_equals(other: Attrs): Boolean = this.alpha_beta_eta_equals(other, AlphaMapping.Empty)
 
-  def upper: Attrs = Attrs(level.upper, AttrSize.Base, selfUsage.upper, AttrSelfUsage.Base, assumptions, AttrDiverge.Base)
+  def upper: Attrs = Attrs(level.upper, AttrSize.Base, selfUsage.upper, AttrSelfUsage_Erased(), assumptions, AttrDiverge.Base) // todo: check if AttrSelfUsage_Erased is fine
 
   def erased: Attrs = Attrs(level, size, AttrUsage_Erased(), selfUsage, assumptions, diverge)
 
