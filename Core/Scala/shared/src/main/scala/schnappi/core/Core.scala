@@ -659,6 +659,8 @@ final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfU
   def sizeSucc: Attrs = Attrs(level, size.succ, usage, selfUsage, assumptions, diverge)
 
   def typeInType: Attrs = Attrs(AttrLevel_UniverseInUniverse(), size, usage, selfUsage, assumptions, diverge)
+
+  def setUsage(x: AttrUsage): Attrs = Attrs(level, size, x, selfUsage, assumptions, diverge)
 }
 
 object Attrs {
@@ -692,7 +694,7 @@ final case class Type(universe: Core, attrs: Attrs) extends Core {
   def attrsMap(f: Attrs => Attrs): Type = Type(universe, f(attrs))
 
   override def impl_infer(context: Context): MaybeSt[Type] = for {
-    _ <- universe.check(context, Cores.UniverseInfinite)
+    _ <- universe.check(context, Cores.UniverseInfiniteErased)
   } yield upperUniverse
 
   def erased: Type = Type(universe, attrs.erased)
@@ -885,9 +887,9 @@ object Cores {
   }
 
   private val Universe0Size0: Type = Type(Universe(), Attrs.Base.upper)
-  private[core] val UniverseInfinite: Type = Universe0Size0.attrsMap(_.infiniteSized).typeInType
+  private[core] val UniverseInfiniteErased: Type = Universe0Size0.attrsMap(_.infiniteSized).typeInType.attrsMap(_.setUsage(AttrUsage_Erased()))
   private val Kind0Size0: Type = Type(Kind(), Attrs.Base.upper)
-  private val KindInfinite: Type = Kind0Size0.attrsMap(_.infiniteSized).typeInType
+  private val KindInfiniteErased: Type = Kind0Size0.attrsMap(_.infiniteSized).typeInType.attrsMap(_.setUsage(AttrUsage_Erased()))
 
   final case class Nat() extends Core with CoreUniverse {
     override def scan: List[Core] = List()
@@ -920,7 +922,7 @@ object Cores {
 
     override def subst(s: Subst): MakeKind = MakeKind(x.subst(s))
 
-    override def evalToType(context: Context): MaybeSt[Type] = (x.check(context, UniverseInfinite)).flatMap(_ => {
+    override def evalToType(context: Context): MaybeSt[Type] = (x.check(context, UniverseInfiniteErased)).flatMap(_ => {
       Right(Type(x, Attrs.Base))
     })
 
@@ -936,9 +938,9 @@ object Cores {
 
     override def subst(s: Subst): WithAttrSize = WithAttrSize(size.subst(s), kind.subst(s))
 
-    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = size.check(context, NatT) and kind.check(context, KindInfinite) and kind.check(context, t)
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = size.check(context, NatT) and kind.check(context, KindInfiniteErased) and kind.check(context, t)
 
-    override def evalToType(context: Context): MaybeSt[Type] = (size.check(context, NatT) and kind.check(context, KindInfinite)).flatMap(_ => {
+    override def evalToType(context: Context): MaybeSt[Type] = (size.check(context, NatT) and kind.check(context, KindInfiniteErased)).flatMap(_ => {
       kind.evalToType(context).map(_.sized(size))
     })
   }
