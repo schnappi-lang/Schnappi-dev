@@ -866,7 +866,7 @@ object Cores {
   }
 
   private val NatZeroT: Type = Type(Nat())
-  private val NatT: Type = NatZeroT.attrsMap(_.unknownFiniteSized)
+  private val NatUnknownFiniteErased: Type = NatZeroT.attrsMap(_.unknownFiniteSized).attrsMap(_.erased)
 
   final case class Zero() extends Core {
     override def scan: List[Core] = List()
@@ -887,9 +887,9 @@ object Cores {
   }
 
   private val Universe0Size0: Type = Type(Universe(), Attrs.Base.upper)
-  private[core] val UniverseInfiniteErased: Type = Universe0Size0.attrsMap(_.infiniteSized).typeInType.attrsMap(_.setUsage(AttrUsage_Erased()))
+  private[core] val UniverseInfiniteErased: Type = Universe0Size0.attrsMap(_.infiniteSized).typeInType.attrsMap(_.erased)
   private val Kind0Size0: Type = Type(Kind(), Attrs.Base.upper)
-  private val KindInfiniteErased: Type = Kind0Size0.attrsMap(_.infiniteSized).typeInType.attrsMap(_.setUsage(AttrUsage_Erased()))
+  private val KindInfiniteErased: Type = Kind0Size0.attrsMap(_.infiniteSized).typeInType.attrsMap(_.erased)
 
   final case class Nat() extends Core with CoreUniverse {
     override def scan: List[Core] = List()
@@ -938,9 +938,9 @@ object Cores {
 
     override def subst(s: Subst): WithAttrSize = WithAttrSize(size.subst(s), kind.subst(s))
 
-    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = size.check(context, NatT) and kind.check(context, KindInfiniteErased) and kind.check(context, t)
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = size.check(context, NatUnknownFiniteErased) and kind.check(context, KindInfiniteErased) and kind.check(context, t)
 
-    override def evalToType(context: Context): MaybeSt[Type] = (size.check(context, NatT) and kind.check(context, KindInfiniteErased)).flatMap(_ => {
+    override def evalToType(context: Context): MaybeSt[Type] = (size.check(context, NatUnknownFiniteErased) and kind.check(context, KindInfiniteErased)).flatMap(_ => {
       kind.evalToType(context).map(_.sized(size))
     })
   }
