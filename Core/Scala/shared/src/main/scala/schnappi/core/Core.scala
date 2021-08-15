@@ -102,6 +102,11 @@ sealed trait MaybeSt[T] {
     case MaybeStOk(_, _) => true
     case MaybeStErr(_) => false
   }
+
+  def isLeft: Boolean = this match {
+    case MaybeStOk(_, _) => false
+    case MaybeStErr(_) => true
+  }
 }
 
 object MaybeSt {
@@ -761,7 +766,8 @@ object Exps {
   final case class WithAttrSize(size: Exp, kind: Exp) extends Exp {
     override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithAttrSize(size.toCore(scope), kind.toCore(scope))
   }
-  final case class WithAttrUnknownFinite(kind:Exp) extends Exp {
+
+  final case class WithAttrUnknownFinite(kind: Exp) extends Exp {
     override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithAttrUnknownFinite(kind.toCore(scope))
   }
 
