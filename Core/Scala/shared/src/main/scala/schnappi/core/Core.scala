@@ -765,12 +765,12 @@ object Exps {
     override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.MakeKind(x.toCore(scope))
   }
 
-  final case class WithAttrSize(size: Exp, kind: Exp) extends Exp {
-    override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithAttrSize(size.toCore(scope), kind.toCore(scope))
+  final case class WithAttrSizeFinite(size: Exp, kind: Exp) extends Exp {
+    override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithAttrSizeFinite(size.toCore(scope), kind.toCore(scope))
   }
 
-  final case class WithAttrUnknownFinite(kind: Exp) extends Exp {
-    override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithAttrUnknownFinite(kind.toCore(scope))
+  final case class WithAttrSizeUnknownFinite(kind: Exp) extends Exp {
+    override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithAttrSizeUnknownFinite(kind.toCore(scope))
   }
 
   final case class Cons(x: Exp, y: Exp) extends Exp {
@@ -947,10 +947,10 @@ object Cores {
     }
   }
 
-  final case class WithAttrSize(size: Core, kind: Core) extends Core with CoreKind {
+  final case class WithAttrSizeFinite(size: Core, kind: Core) extends Core with CoreKind {
     override def scan: List[Core] = List(size, kind)
 
-    override def subst(s: Subst): WithAttrSize = WithAttrSize(size.subst(s), kind.subst(s))
+    override def subst(s: Subst): WithAttrSizeFinite = WithAttrSizeFinite(size.subst(s), kind.subst(s))
 
     override def impl_check(context: Context, t: Type): MaybeSt[Unit] = size.check(context, NatUnknownFiniteErased) and kind.check(context, KindInfiniteErased) and kind.check(context, t)
 
@@ -959,10 +959,10 @@ object Cores {
     })
   }
 
-  final case class WithAttrUnknownFinite(kind: Core) extends Core with CoreKind {
+  final case class WithAttrSizeUnknownFinite(kind: Core) extends Core with CoreKind {
     override def scan: List[Core] = List(kind)
 
-    override def subst(s: Subst): WithAttrUnknownFinite = WithAttrUnknownFinite(kind.subst(s))
+    override def subst(s: Subst): WithAttrSizeUnknownFinite = WithAttrSizeUnknownFinite(kind.subst(s))
 
     override def impl_check(context: Context, t: Type): MaybeSt[Unit] = kind.check(context, KindInfiniteErased) and kind.check(context, t)
 
