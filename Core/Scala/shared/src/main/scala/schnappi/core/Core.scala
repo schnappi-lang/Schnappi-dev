@@ -1030,7 +1030,7 @@ object Cores {
 
     override def impl_check(context: Context, t: Type): MaybeSt[Unit] = t.universe.reducingMatch(context, {
       case Pi(arg0, id, result0) => for {
-        _ <- Recs.checkRec(context, t, this)
+        _ <- Recs.checkRecWithoutCheck(context, t, this)
         argT <- arg0.evalToType(context)
         _ <- t.checkWeakSubtype(argT).l
         innerContext = context.updated(arg, argT).updated(id, argT, AccessVar.internal(arg))
@@ -1039,7 +1039,7 @@ object Cores {
         _ <- body.check(innerContext, resultT)
       } yield ()
       case RecPi(arg0, id, result0) => for {
-        _ <- Recs.checkRec(context, t, this)
+        _ <- Recs.checkRecWithoutCheck(context, t, this)
         argT <- arg0.evalToType(context)
         _ <- t.checkWeakSubtype(argT).l
         recSize <- (argT.attrs.size match {
@@ -1148,7 +1148,7 @@ object Cores {
       //_ <- checkRec(context, kind, rec.x) // will be checker in other parts
     } yield (rec.id.x, kind, rec.x)
 
-    def checkRec(context: Context, kind: Type, x: Core): MaybeSt[Unit] = x.check(context, kind).flatMap(_ => if (isRecursive(context, x)) {
+    def checkRecWithoutCheck(context: Context, kind: Type, x: Core): MaybeSt[Unit] = if (isRecursive(context, x)) {
       if (kind.attrs.size == AttrSize_UnknownFinite()) {
         MaybeStErr(ErrUnknownFiniteRec(context, x, kind))
         // other parts will handle finite and infinite correctly
@@ -1166,7 +1166,12 @@ object Cores {
       }
     } else {
       MaybeSt.pure(())
-    })
+    }
+
+    def checkRec(context: Context, kind: Type, x: Core): MaybeSt[Unit] = for {
+      _ <- x.check(context, kind)
+      _ <- checkRecWithoutCheck(context, kind, x)
+    } yield ()
   }
 
   final case class Apply(f: Core, x: Core) extends CoreNeu {
