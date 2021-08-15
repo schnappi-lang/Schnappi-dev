@@ -731,7 +731,7 @@ object Exps {
   final case class Var(x: Identifier) extends ExpNeu {
     def toCoreVar(scope: HashMap[Identifier, VarId]): Cores.Var = scope.get(x) match {
       case Some(v) => Cores.Var(v)
-      case None => throw new Error("no definition $x")
+      case None => throw new Error(s"no definition $x")
     }
 
     override def toCore(scope: HashMap[Identifier, VarId]): Cores.AccessVar = Cores.AccessVar.gen(this.toCoreVar(scope))
@@ -791,7 +791,10 @@ object Exps {
   }
 
   final case class Lambda(arg: Var, body: Exp) extends Exp {
-    override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.Lambda(arg.toCoreVar(scope), body.toCore(scope))
+    override def toCore(scope: HashMap[Identifier, VarId]): Core = {
+      val scope0 = scope.updated(arg.x, arg.gen.x)
+      Cores.Lambda(arg.toCoreVar(scope0), body.toCore(scope0))
+    }
   }
 
   final case class Pi(x: Exp, id: Var, y: Exp) extends Exp {

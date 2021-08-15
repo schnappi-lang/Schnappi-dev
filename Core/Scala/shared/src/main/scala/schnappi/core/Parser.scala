@@ -10,7 +10,7 @@ object Parser {
   private[this] val whitespacesMaybe: Parser0[Unit] = (whitespaces ?).void
 
   // [\u4e00-\u9fa5] is Chinese chars
-  private val atomRegex = "(\\w|[-？?/*:><]|[\u4e00-\u9fa5])+".r
+  private val atomRegex = "(\\w|[-？?/*:><_]|[\u4e00-\u9fa5])+".r
 
   private def isAtomChar(c: Char) = atomRegex.matches(c.toString)
 
@@ -21,11 +21,11 @@ object Parser {
 
     def product3[A, B, C](pa: P[A], pb: P[B], pc: P[C]): P[(A, B, C)] = (pa ~ pb ~ pc).map({ case ((a, b), c) => (a, b, c) })
 
-    def taggedList2[A, B, T](tag: P[T], pa: P[A], pb: P[B]): P[(A, B)] = whitespacesMaybe.with1 ~ tag *> (whitespacesPrefix(pa) ~ whitespacesPrefix(pb)).between(P.string("("), P.string(")"))
+    def taggedList2[A, B, T](tag: P[T], pa: P[A], pb: P[B]): P[(A, B)] = (whitespacesMaybe.with1 ~ tag *> (whitespacesPrefix(pa) ~ whitespacesPrefix(pb))).between(P.string("("), P.string(")")).backtrack
 
-    def taggedList3[A, B, C, T](tag: P[T], pa: P[A], pb: P[B], pc: P[C]): P[(A, B, C)] = whitespacesMaybe.with1 ~ tag *> product3(whitespacesPrefix(pa), whitespacesPrefix(pb), whitespacesPrefix(pc)).between(P.string("("), P.string(")"))
+    def taggedList3[A, B, C, T](tag: P[T], pa: P[A], pb: P[B], pc: P[C]): P[(A, B, C)] = (whitespacesMaybe.with1 ~ tag *> product3(whitespacesPrefix(pa), whitespacesPrefix(pb), whitespacesPrefix(pc))).between(P.string("("), P.string(")")).backtrack
 
-    def list3[A, B, C](pa: P[A], pb: P[B], pc: P[C]) = whitespacesMaybe.with1 *> product3(whitespacesPrefix(pa), whitespacesPrefix(pb), whitespacesPrefix(pc)).between(P.string("("), P.string(")"))
+    def list3[A, B, C](pa: P[A], pb: P[B], pc: P[C]) = product3(whitespacesPrefix(pa), whitespacesPrefix(pb), whitespacesPrefix(pc)).between(P.string("("), P.string(")"))
 
     def listof[A](pa: P[A]): P[List[A]] = pa.repSep0(whitespaces).surroundedBy(whitespacesMaybe).with1.between(P.string("("), P.string(")"))
 
@@ -59,6 +59,7 @@ object Parser {
       f2("apply").map(Apply(_, _)),
       f2("the").map(The(_, _)),
       quotep,
+      varp,
       P.string("atom").as(Atom()),
     ))
   }

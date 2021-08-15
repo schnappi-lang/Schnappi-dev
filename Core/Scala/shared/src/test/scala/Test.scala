@@ -14,6 +14,7 @@ final class Test extends AnyFunSpec {
       assert(infer("(the (withAttrUnknownFinite (makeKind nat)) (succ (succ zero)))").isRight)
       assert(infer("(the (withAttrUnknownFinite (makeKind nat)) 'a)").isLeft)
       assert(infer("(the (makeKind nat) (succ (succ zero)))").isLeft)
+      assert(infer("(the (pi (withAttrUnknownFinite (makeKind nat)) $_ (withAttrUnknownFinite (makeKind nat))) (lambda $x $x))").isRight)
     }
   }
 }
