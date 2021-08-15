@@ -17,10 +17,10 @@ final class Test extends AnyFunSpec {
       assert(infer("(the (withAttrSizeFinite zero (makeKind nat)) zero)").isRight)
       assert(infer("(the (withAttrSizeUnknownFinite (makeKind nat)) 'a)").isLeft)
       assert(infer("(the (makeKind nat) (succ (succ zero)))").isLeft)
-      assert(infer("(the (makeKind (pi (withAttrSizeUnknownFinite (makeKind nat)) $_ (withAttrSizeUnknownFinite (makeKind nat)))) (lambda $x $x))").isRight)
-      assert(infer("(apply (the (makeKind (pi (withAttrSizeUnknownFinite (makeKind nat)) $_ (withAttrSizeUnknownFinite (makeKind nat)))) (lambda $x $x)) zero)").isRight)
-      assert(infer("(the (withAttrSizeFinite zero (makeKind (sigma (makeKind nat) $_ (makeKind nat)))) (cons zero zero))").isLeft)
-      assert(infer("(the (withAttrSizeFinite (succ zero) (makeKind (sigma (makeKind nat) $_ (makeKind nat)))) (cons zero zero))").isRight)
+      assert(infer("(the (makeKind (pi (withAttrSizeUnknownFinite (makeKind nat)) (var _) (withAttrSizeUnknownFinite (makeKind nat)))) (lambda (var x) (var x)))").isRight)
+      assert(infer("(apply (the (makeKind (pi (withAttrSizeUnknownFinite (makeKind nat)) (var _) (withAttrSizeUnknownFinite (makeKind nat)))) (lambda (var x) (var x))) zero)").isRight)
+      assert(infer("(the (withAttrSizeFinite zero (makeKind (sigma (makeKind nat) (var _) (makeKind nat)))) (cons zero zero))").isLeft)
+      assert(infer("(the (withAttrSizeFinite (succ zero) (makeKind (sigma (makeKind nat) (var _) (makeKind nat)))) (cons zero zero))").isRight)
     }
   }
 }

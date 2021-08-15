@@ -21,9 +21,9 @@ object Parser {
 
     def product3[A, B, C](pa: P[A], pb: P[B], pc: P[C]): P[(A, B, C)] = (pa ~ pb ~ pc).map({ case ((a, b), c) => (a, b, c) })
 
-    def taggedList2[A, B, T](tag: P[T], pa: P[A], pb: P[B]): P[(A, B)] = (whitespacesMaybe.with1 ~ tag *> (whitespacesPrefix(pa) ~ whitespacesPrefix(pb))).between(P.string("("), P.string(")")).backtrack
+    def taggedList2[A, B, T](tag: P[T], pa: P[A], pb: P[B]): P[(A, B)] = (tag *> (whitespacesPrefix(pa) ~ whitespacesPrefix(pb))).surroundedBy(whitespacesMaybe).between(P.string("("), P.string(")")).backtrack
 
-    def taggedList3[A, B, C, T](tag: P[T], pa: P[A], pb: P[B], pc: P[C]): P[(A, B, C)] = (whitespacesMaybe.with1 ~ tag *> product3(whitespacesPrefix(pa), whitespacesPrefix(pb), whitespacesPrefix(pc))).between(P.string("("), P.string(")")).backtrack
+    def taggedList3[A, B, C, T](tag: P[T], pa: P[A], pb: P[B], pc: P[C]): P[(A, B, C)] = (tag *> product3(whitespacesPrefix(pa), whitespacesPrefix(pb), whitespacesPrefix(pc))).surroundedBy(whitespacesMaybe).between(P.string("("), P.string(")")).backtrack
 
     def list3[A, B, C](pa: P[A], pb: P[B], pc: P[C]) = product3(whitespacesPrefix(pa), whitespacesPrefix(pb), whitespacesPrefix(pc)).between(P.string("("), P.string(")"))
 
@@ -33,10 +33,10 @@ object Parser {
 
     def f2(tag: String): P[(Exp, Exp)] = (parser ~ whitespacesParser).surroundedBy(whitespacesMaybe).between(P.string("(" + tag), P.string(")"))
 
-    val identifer: P[String] = P.charsWhile(isAtomChar)
+    val identifier: P[String] = P.charsWhile(isAtomChar)
 
-    val varp: P[Var] = (P.string("$") *> identifer).map(x => Var(Symbol(x)))
-    val quotep: P[Quote] = (P.string("'") *> identifer).map(x => Quote(Symbol(x)))
+    val varp: P[Var] = (whitespacesPrefix(identifier) <* whitespacesMaybe).between(P.string("(var"), P.string(")")).map(x => Var(Symbol(x)))
+    val quotep: P[Quote] = (P.string("'") *> identifier).map(x => Quote(Symbol(x)))
 
     P.oneOf(List(
       P.string("zero").as(Zero()),
