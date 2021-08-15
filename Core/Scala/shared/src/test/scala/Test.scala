@@ -12,6 +12,7 @@ final class Test extends AnyFunSpec {
       assert(infer("(succ zero)").isRight)
       assert(infer("'a").isRight)
       assert(infer("(the (withAttrUnknownFinite (makeKind nat)) (succ (succ zero)))").isRight)
+      assert(infer("(the (withAttrUnknownFinite (makeKind nat)) 'a)").isLeft)
       assert(infer("(the (makeKind nat) (succ (succ zero)))").isLeft)
     }
   }
