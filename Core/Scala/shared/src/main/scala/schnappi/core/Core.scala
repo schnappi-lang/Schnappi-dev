@@ -620,6 +620,8 @@ final case class AttrDiverge_Yes() extends AttrDiverge
 
 final case class AttrDiverge_No() extends AttrDiverge
 
+// todo: size of a lambda?
+
 final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfUsage: AttrSelfUsage, assumptions: AttrAssumptions, diverge: AttrDiverge) {
   def scan: List[Core] = level.scan ++ size.scan ++ usage.scan ++ selfUsage.scan ++ assumptions.scan ++ diverge.scan
 
@@ -1035,7 +1037,7 @@ object Cores {
         _ <- t.checkWeakSubtype(argT).l
         innerContext = context.updated(arg, argT).updated(id, argT, AccessVar.internal(arg))
         resultT <- result0.evalToType(innerContext)
-        _ <- t.checkPlainSubtype(resultT).l
+        _ <- t.checkWeakSubtype(resultT).l
         _ <- body.check(innerContext, resultT)
       } yield ()
       case RecPi(arg0, id, result0) => for {
@@ -1051,7 +1053,7 @@ object Cores {
         }): MaybeSt[Core]
         innerContext = context.updated(arg, argT).updated(id, argT, AccessVar.internal(arg)).setRecSize(recSize)
         resultT <- result0.evalToType(innerContext)
-        _ <- t.checkPlainSubtype(resultT).l
+        _ <- t.checkWeakSubtype(resultT).l
         _ <- body.check(innerContext, resultT)
       } yield ()
       case wrong => MaybeStErr(ErrExpected(context, "Pi", this, wrong))
