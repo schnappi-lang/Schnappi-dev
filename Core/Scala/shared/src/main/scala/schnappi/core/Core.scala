@@ -867,7 +867,7 @@ object Cores {
 
     override def impl_infer(context: Context): MaybeSt[Type] = context.getType(v.x) match {
       case Some(t) => for {
-        _ <- Recs.checkRec(context, t, this)
+        _ <- Recs.checkRecWithoutCheck(context, t, this)
       } yield t
       case None => Left(ErrTypeUnknown(context, this))
     }
