@@ -761,6 +761,9 @@ object Exps {
   final case class WithAttrSize(size: Exp, kind: Exp) extends Exp {
     override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithAttrSize(size.toCore(scope), kind.toCore(scope))
   }
+  final case class WithAttrUnknownFinite(kind:Exp) extends Exp {
+    override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithAttrUnknownFinite(kind.toCore(scope))
+  }
 
   final case class Cons(x: Exp, y: Exp) extends Exp {
     override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.Cons(x.toCore(scope), y.toCore(scope))
@@ -943,6 +946,19 @@ object Cores {
     override def evalToType(context: Context): MaybeSt[Type] = (size.check(context, NatUnknownFiniteErased) and kind.check(context, KindInfiniteErased)).flatMap(_ => {
       kind.evalToType(context).map(_.sized(size))
     })
+  }
+
+  final case class WithAttrUnknownFinite(kind: Core) extends Core with CoreKind {
+    override def scan: List[Core] = List(kind)
+
+    override def subst(s: Subst): WithAttrUnknownFinite = WithAttrUnknownFinite(kind.subst(s))
+
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = kind.check(context, KindInfiniteErased) and kind.check(context, t)
+
+    override def evalToType(context: Context): MaybeSt[Type] = for {
+      _ <- kind.check(context, KindInfiniteErased)
+      x <- kind.evalToType(context)
+    } yield x.attrsMap(_.unknownFiniteSized)
   }
 
   final case class Cons(x: Core, y: Core) extends Core {
