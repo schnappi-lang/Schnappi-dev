@@ -11,10 +11,6 @@ sealed abstract class Err(x: String) extends Exception(x)
 
 final case class CoreErr(x: core.Err) extends Err(s"core err $x")
 
-sealed trait Exp {
-
-}
-
 final case class Context() // todo
 
 type UnifySubstitution = HashMap[Hole, Core]
@@ -102,10 +98,26 @@ sealed trait Core {
   def impl_unify(other: Core): UnifierOption[Unit] = ???
 
   def walk: Unifier[Core] = Unifier.pure(this)
+
+  def mat[T](f: Core => UnifierOption[T]): UnifierOption[T] = f(this)
 }
 
 final case class Hole(id: Identifier, uid: UniqueIdentifier) extends Core {
   override def walk: Unifier[Core] = state => (state, state.getOrElse(this, this))
 
   override def impl_unify(other: Core): UnifierOption[Unit] = state => (state.addNoDup(this, other), Some(()))
+
+  override def mat[T](f: Core => UnifierOption[T]): UnifierOption[T] = ???
+}
+
+final case class Var(x: Identifier) extends Core {
+  
+}
+
+final case class Zero() extends Core {
+  
+}
+
+final case class Succ(x: Core) extends Core {
+  
 }
