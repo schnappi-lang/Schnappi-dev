@@ -256,21 +256,42 @@ object Subst {
   def apply(v: Cores.Var, t: Type, x: Core): Subst = HashMap((v, Cores.InternalThe(t, x)))
 }
 
-sealed trait Core {
+object Equality {
+  def propositionalEquals(self: List[Equality], other: List[Equality])(implicit context: Context, mapping: AlphaMapping): Boolean = (self, other) match {
+    case (a :: as, b :: bs) => a.propositionalEquals(b) && propositionalEquals(as, bs)
+    case (Nil, Nil) => true
+  }
+}
+
+sealed trait Equality {
+  def scanEquality: List[Equality]
+
+  def propositionalEquals(other: Equality)(implicit context: Context, mapping: AlphaMapping): Boolean = this == other ||
+    (this.getClass == other.getClass && Equality.propositionalEquals(this.scanEquality, other.scanEquality)) ||
+    (this.isInstanceOf[Core] && {
+      val next = this.asInstanceOf[Core].reduce(context)
+      this != next && next.propositionalEquals(other)
+    }) || (other.isInstanceOf[Core] && {
+    val nextOther = other.asInstanceOf[Core].reduce(context)
+    other != nextOther && nextOther.propositionalEquals(this)
+  })
+
+  final def propEq(context: Context, other: Core) = this.propositionalEquals(other)(context, AlphaMapping.Empty)
+}
+
+sealed trait Core extends Equality {
   def subst(s: Subst): Core
 
   final def scanVar(v: Cores.Var): NaturalNumber = ???
 
+  // values only
   def scan: List[Core]
+
+  override def scanEquality: List[Equality] = scan
 
   final def subst(v: Cores.Var, x: Core): Core = this.subst(Subst(v, x))
 
   final def subst(v: Cores.Var, t: Type, x: Core): Core = this.subst(Subst(v, t, x))
-
-  // todo: fix equal - add the context argument
-  def alpha_beta_eta_equals(other: Core, map: AlphaMapping): Boolean = this == other
-
-  final def alpha_beta_eta_equals(other: Core): Boolean = this.alpha_beta_eta_equals(other, AlphaMapping.Empty)
 
   def weakHeadNormalForm(context: Context): Core = {
     val next = this.reduce(context)
@@ -408,12 +429,10 @@ sealed trait CoreKind extends Core {
 // is neutral if appers in normal form
 sealed trait CoreNeu extends Core
 
-sealed trait Attr {
+sealed trait Attr extends Equality {
   def scan: List[Core] = List()
 
-  def alpha_beta_eta_equals(other: Attr, map: AlphaMapping): Boolean = this == other
-
-  final def alpha_beta_eta_equals(other: Attr): Boolean = this.alpha_beta_eta_equals(other, AlphaMapping.Empty)
+  override def scanEquality: List[Equality] = scan
 }
 
 private sealed trait NatParseResult
@@ -472,11 +491,6 @@ final case class AttrLevel_UniverseInUniverse() extends AttrLevel
 // one - Universe0 Kind0 ...
 final case class AttrLevel_Known(level: Core) extends AttrLevel {
   override def scan: List[Core] = List(level)
-
-  override def alpha_beta_eta_equals(other: Attr, map: AlphaMapping): Boolean = other match {
-    case AttrLevel_Known(otherLevel) => level.alpha_beta_eta_equals(otherLevel, map)
-    case _ => false
-  }
 }
 
 sealed trait AttrSize extends Attr {
@@ -518,11 +532,6 @@ final case class AttrSize_Infinite() extends AttrSize
 
 final case class AttrSize_Known(size: Core) extends AttrSize {
   override def scan: List[Core] = List(size)
-
-  override def alpha_beta_eta_equals(other: Attr, map: AlphaMapping): Boolean = other match {
-    case AttrSize_Known(otherSize) => size.alpha_beta_eta_equals(otherSize, map)
-    case _ => false
-  }
 }
 
 sealed trait AttrUsage extends Attr {
@@ -590,10 +599,12 @@ final case class AttrAssumptions(assumptions: Set[Type]) extends Attr {
 object AttrAssumptions {
   def Base = AttrAssumptions(Set())
 
-  private def distinct(xs: List[Type]): List[Type] = xs match {
+  private def distinct(context: Context, xs: List[Type]): List[Type] = xs match {
     case Nil => Nil
-    case x :: xs => x :: distinct(xs.filterNot(x.alpha_beta_eta_equals(_)))
+    case x :: xs => x :: distinct(context, xs.filterNot(x.propEq(context, _)))
   }
+
+  private def distinct(xs: List[Type]): List[Type] = distinct(Context.Empty, xs)
 
   private def checkErased(assumptions: Set[Type]): Boolean = assumptions.forall(_.attrs.usage == AttrUsage_Erased())
 
@@ -631,8 +642,10 @@ final case class AttrDiverge_No() extends AttrDiverge
 
 // todo: size of a lambda?
 
-final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfUsage: AttrSelfUsage, assumptions: AttrAssumptions, diverge: AttrDiverge) {
+final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfUsage: AttrSelfUsage, assumptions: AttrAssumptions, diverge: AttrDiverge) extends Equality {
   def scan: List[Core] = level.scan ++ size.scan ++ usage.scan ++ selfUsage.scan ++ assumptions.scan ++ diverge.scan
+
+  override def scanEquality: List[Equality] = List(level,size,usage,selfUsage,assumptions, diverge)
 
   def subst(s: Subst): Attrs = Attrs(level.subst(s), size.subst(s), usage.subst(s), selfUsage.subst(s), assumptions.subst(s), diverge.subst(s))
 
@@ -692,6 +705,8 @@ final case class Type(universe: Core, attrs: Attrs) extends Core {
 
   override def scan: List[Core] = List(universe) ++ attrs.scan
 
+  override def scanEquality: List[Equality] = List(universe, attrs)
+
   override def alpha_beta_eta_equals(other: Core, map: AlphaMapping): Boolean = other match {
     case Type(otherUniverse, otherAttrs) => universe.alpha_beta_eta_equals(otherUniverse, map) && attrs.alpha_beta_eta_equals(otherAttrs, map)
     case _ => false
@@ -734,6 +749,8 @@ final case class Type(universe: Core, attrs: Attrs) extends Core {
     case AttrSelfUsage_Erased() => true
     case AttrSelfUsage_Unlimited() | AttrSelfUsage_Once() => false
   }
+
+  def validApply(pi: Attrs, arg: Attrs, res: Attrs) = ???
 }
 
 object Type {
@@ -1292,6 +1309,8 @@ object Cores {
   }
 
   final case class The(t: Core, x: Core) extends Core {
+    override def scanEquality: List[Core] = List(t, x)
+
     override def scan: List[Core] = List(x)
 
     override def subst(s: Subst): The = The(t.subst(s), x.subst(s))
@@ -1305,6 +1324,8 @@ object Cores {
   }
 
   final case class InternalThe(t: Type, x: Core) extends Core {
+    override def scanEquality: List[Core] = List(t, x)
+
     override def scan: List[Core] = List(x)
 
     override def subst(s: Subst): InternalThe = InternalThe(t.subst(s), x.subst(s))
