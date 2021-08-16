@@ -672,6 +672,8 @@ final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfU
   def setUsage(x: AttrUsage): Attrs = Attrs(level, size, x, selfUsage, assumptions, diverge)
 
   def setLevel(x: AttrLevel): Attrs = Attrs(x, size, usage, selfUsage, assumptions, diverge)
+
+  def setSelfUsage(x: AttrSelfUsage): Attrs = Attrs(level, size, usage, x, assumptions, diverge)
 }
 
 object Attrs {
@@ -779,6 +781,14 @@ object Exps {
 
   final case class WithAttrLevel(level: Exp, kind: Exp) extends Exp {
     override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithAttrLevel(level.toCore(scope), kind.toCore(scope))
+  }
+
+  final case class WithAttrUsageErased(kind: Exp) extends Exp {
+    override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithAttrUsageErased(kind.toCore(scope))
+  }
+
+  final case class WithSelfAttrUsageErased(kind: Exp) extends Exp {
+    override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithSelfAttrUsageErased(kind.toCore(scope))
   }
 
   final case class Cons(x: Exp, y: Exp) extends Exp {
@@ -999,6 +1009,32 @@ object Cores {
       _ <- kind.check(context, KindInfiniteErased)
       x <- kind.evalToType(context).map(_.attrsMap(_.setLevel(AttrLevel_Known(level))))
     } yield x
+  }
+
+  final case class WithAttrUsageErased(kind: Core) extends Core with CoreKind {
+    override def scan: List[Core] = List(kind)
+
+    override def subst(s: Subst): WithAttrUsageErased = WithAttrUsageErased(kind.subst(s))
+
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = kind.check(context, KindInfiniteErased) and kind.check(context, t)
+
+    override def evalToType(context: Context): MaybeSt[Type] = for {
+      _ <- kind.check(context, KindInfiniteErased)
+      x <- kind.evalToType(context)
+    } yield x.attrsMap(_.erased)
+  }
+
+  final case class WithSelfAttrUsageErased(kind: Core) extends Core with CoreKind {
+    override def scan: List[Core] = List(kind)
+
+    override def subst(s: Subst): WithSelfAttrUsageErased = WithSelfAttrUsageErased(kind.subst(s))
+
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = kind.check(context, KindInfiniteErased) and kind.check(context, t)
+
+    override def evalToType(context: Context): MaybeSt[Type] = for {
+      _ <- kind.check(context, KindInfiniteErased)
+      x <- kind.evalToType(context)
+    } yield x.attrsMap(_.setSelfUsage(AttrSelfUsage_Erased()))
   }
 
   final case class Cons(x: Core, y: Core) extends Core {

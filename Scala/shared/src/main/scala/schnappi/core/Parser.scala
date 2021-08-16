@@ -48,6 +48,8 @@ object Parser {
       f2("withAttrSizeFinite").map(WithAttrSizeFinite(_, _)),
       f1("withAttrSizeUnknownFinite").map(WithAttrSizeUnknownFinite(_)),
       f2("withAttrLevel").map(WithAttrLevel(_, _)),
+      f1("withAttrUsageErased").map(WithAttrUsageErased(_)),
+      f1("withSelfAttrUsageErased").map(WithSelfAttrUsageErased(_)),
       f2("cons").map(Cons(_, _)),
       f1("car").map(Car(_)),
       f1("cdr").map(Cdr(_)),

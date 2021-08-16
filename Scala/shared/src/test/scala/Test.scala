@@ -23,6 +23,9 @@ final class Test extends AnyFunSpec {
       assert(infer("(the (withAttrSizeFinite (succ zero) (makeKind (sigma (makeKind nat) (var _) (makeKind nat)))) (cons zero zero))").isRight)
       assert(infer("(pi (withAttrLevel (succ zero) (makeKind universe)) (var t) (pi (withAttrSizeUnknownFinite (makeKind (var t))) (var _) (withAttrSizeUnknownFinite (makeKind (var t)))))").isRight)
       assert(infer("(the (withAttrLevel (succ zero) (makeKind (pi (withAttrLevel (succ zero) (makeKind universe)) (var t) (pi (withAttrSizeUnknownFinite (makeKind (var t))) (var _) (withAttrSizeUnknownFinite (makeKind (var t))))))) (lambda (var _) (lambda (var x) (var x))))").isRight)
+      assert(infer("(the (withAttrLevel (succ zero) (makeKind (pi (withAttrUsageErased (withAttrLevel (succ zero) (makeKind universe))) (var t) (pi (withAttrSizeUnknownFinite (makeKind (var t))) (var _) (withAttrSizeUnknownFinite (makeKind (var t))))))) (lambda (var _) (lambda (var x) (var x))))").isRight)
+      assert(infer("(the (withAttrLevel (succ zero) (makeKind (pi (withSelfAttrUsageErased (withAttrUsageErased (withAttrLevel (succ zero) (makeKind universe)))) (var t) (pi (withAttrSizeUnknownFinite (makeKind (var t))) (var _) (withAttrSizeUnknownFinite (makeKind (var t))))))) (lambda (var _) (lambda (var x) (var x))))").isRight)
+      //assert(infer("(apply (apply (the (withAttrLevel (succ zero) (makeKind (pi (withSelfAttrUsageErased (withAttrUsageErased (withAttrLevel (succ zero) (makeKind universe)))) (var t) (pi (withAttrSizeUnknownFinite (makeKind (var t))) (var _) (withAttrSizeUnknownFinite (makeKind (var t))))))) (lambda (var _) (lambda (var x) (var x)))) nat) (succ zero))").isRight)
     }
   }
 }
