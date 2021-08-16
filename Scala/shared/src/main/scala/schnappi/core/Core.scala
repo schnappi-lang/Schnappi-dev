@@ -260,12 +260,14 @@ object Equality {
   def propositionalEquals(self: List[Equality], other: List[Equality])(implicit context: Context, mapping: AlphaMapping): Boolean = (self, other) match {
     case (a :: as, b :: bs) => a.propositionalEquals(b) && propositionalEquals(as, bs)
     case (Nil, Nil) => true
+    case (_ :: _, Nil) | (Nil, _ :: _) => false
   }
 }
 
 sealed trait Equality {
   def scanEquality: List[Equality]
 
+  // todo alpha on bindings such like lambda
   def propositionalEquals(other: Equality)(implicit context: Context, mapping: AlphaMapping): Boolean = this == other ||
     (this.getClass == other.getClass && Equality.propositionalEquals(this.scanEquality, other.scanEquality)) ||
     (this.isInstanceOf[Core] && {
@@ -276,7 +278,7 @@ sealed trait Equality {
     other != nextOther && nextOther.propositionalEquals(this)
   })
 
-  final def propEq(context: Context, other: Core) = this.propositionalEquals(other)(context, AlphaMapping.Empty)
+  final def propEq(context: Context, other: Equality) = this.propositionalEquals(other)(context, AlphaMapping.Empty)
 }
 
 sealed trait Core extends Equality {
@@ -339,7 +341,7 @@ sealed trait Core extends Equality {
   final def infer: MaybeSt[Type] = this.infer(Context.Empty)
 
   def impl_check(context: Context, t: Type): MaybeSt[Unit] = this.infer(context) match {
-    case MaybeStOk(st, t0) => if (t.subsetOrEqual(t0)) {
+    case MaybeStOk(st, t0) => if (t.subsetOrEqual(context, t0)) {
       MaybeStOk(st, ())
     } else {
       MaybeStErr(ErrCheckFailed(context, t, this, t0))
@@ -587,10 +589,10 @@ final case class AttrAssumptions(assumptions: Set[Type]) extends Attr {
 
   def merge(other: AttrAssumptions): AttrAssumptions = AttrAssumptions.nodupApply(assumptions.union(other.assumptions))
 
-  override def alpha_beta_eta_equals(other: Attr, map: AlphaMapping): Boolean = other match {
+  override def propositionalEquals(other: Equality)(implicit context: Context, mapping: AlphaMapping): Boolean = other match {
     case AttrAssumptions(otherAssumptions) if assumptions.size == otherAssumptions.size => {
       val bs = otherAssumptions.toList
-      assumptions.toList.permutations.exists((as) => as.zip(bs).forall({ case (x, y) => x.alpha_beta_eta_equals(y, map) }))
+      assumptions.toList.permutations.exists((as) => as.zip(bs).forall({ case (x, y) => x.propositionalEquals(y) }))
     }
     case _ => false
   }
@@ -645,7 +647,7 @@ final case class AttrDiverge_No() extends AttrDiverge
 final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfUsage: AttrSelfUsage, assumptions: AttrAssumptions, diverge: AttrDiverge) extends Equality {
   def scan: List[Core] = level.scan ++ size.scan ++ usage.scan ++ selfUsage.scan ++ assumptions.scan ++ diverge.scan
 
-  override def scanEquality: List[Equality] = List(level,size,usage,selfUsage,assumptions, diverge)
+  override def scanEquality: List[Equality] = List(level, size, usage, selfUsage, assumptions, diverge)
 
   def subst(s: Subst): Attrs = Attrs(level.subst(s), size.subst(s), usage.subst(s), selfUsage.subst(s), assumptions.subst(s), diverge.subst(s))
 
@@ -653,27 +655,17 @@ final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfU
 
   // pi is not plain
   // plain: sigma either ...
-  def validPlainSubtype(subtype: Attrs): Boolean =
-    this.level.merge(subtype.level).alpha_beta_eta_equals(this.level) &&
-      this.size.merge(subtype.size.succ).alpha_beta_eta_equals(this.size) &&
-      this.usage.merge(subtype.usage).alpha_beta_eta_equals(this.usage) &&
-      this.selfUsage.merge(subtype.selfUsage).alpha_beta_eta_equals(this.selfUsage) &&
-      this.assumptions.merge(subtype.assumptions).alpha_beta_eta_equals(this.assumptions) &&
-      this.diverge.merge(subtype.diverge).alpha_beta_eta_equals(this.diverge)
+  def validPlainSubtype(context: Context, subtype: Attrs): Boolean =
+    this.level.merge(subtype.level).propEq(context, this.level) &&
+      this.size.merge(subtype.size.succ).propEq(context, this.size) &&
+      this.usage.merge(subtype.usage).propEq(context, this.usage) &&
+      this.selfUsage.merge(subtype.selfUsage).propEq(context, this.selfUsage) &&
+      this.assumptions.merge(subtype.assumptions).propEq(context, this.assumptions) &&
+      this.diverge.merge(subtype.diverge).propEq(context, this.diverge)
 
   def getPlainSubtype(context: Context): Maybe[Attrs] = size.getPlainSubtype(context).map(Attrs(level, _, usage, selfUsage, assumptions, diverge))
 
-  def validPiSubtype(subtype: Attrs): Boolean = this.level.merge(subtype.level).alpha_beta_eta_equals(this.level)
-
-  def alpha_beta_eta_equals(other: Attrs, map: AlphaMapping): Boolean =
-    level.alpha_beta_eta_equals(other.level, map) &&
-      size.alpha_beta_eta_equals(other.size, map) &&
-      usage.alpha_beta_eta_equals(other.usage, map) &&
-      selfUsage.alpha_beta_eta_equals(other.selfUsage, map) &&
-      assumptions.alpha_beta_eta_equals(other.assumptions, map) &&
-      diverge.alpha_beta_eta_equals(other.diverge, map)
-
-  final def alpha_beta_eta_equals(other: Attrs): Boolean = this.alpha_beta_eta_equals(other, AlphaMapping.Empty)
+  def validPiSubtype(context: Context, subtype: Attrs): Boolean = this.level.merge(subtype.level).propEq(context, this.level)
 
   def upper: Attrs = Attrs(level.upper, AttrSize.Base, selfUsage.upper, AttrSelfUsage_Erased(), assumptions, AttrDiverge.Base) // todo: check if AttrSelfUsage_Erased is fine
 
@@ -707,20 +699,15 @@ final case class Type(universe: Core, attrs: Attrs) extends Core {
 
   override def scanEquality: List[Equality] = List(universe, attrs)
 
-  override def alpha_beta_eta_equals(other: Core, map: AlphaMapping): Boolean = other match {
-    case Type(otherUniverse, otherAttrs) => universe.alpha_beta_eta_equals(otherUniverse, map) && attrs.alpha_beta_eta_equals(otherAttrs, map)
-    case _ => false
-  }
+  def validPlainSubtype(context: Context, subtype: Type): Boolean = attrs.validPlainSubtype(context, subtype.attrs)
 
-  def validPlainSubtype(subtype: Type): Boolean = attrs.validPlainSubtype(subtype.attrs)
+  def validPiSubtype(context: Context, subtype: Type): Boolean = attrs.validPiSubtype(context, subtype.attrs)
 
-  def validPiSubtype(subtype: Type): Boolean = attrs.validPiSubtype(subtype.attrs)
+  def checkPlainSubtype(context: Context, subtype: Type): Maybe[Unit] = if (this.validPlainSubtype(context, subtype)) Right(()) else Left(ErrPlainSubtype(this, subtype))
 
-  def checkPlainSubtype(subtype: Type): Maybe[Unit] = if (this.validPlainSubtype(subtype)) Right(()) else Left(ErrPlainSubtype(this, subtype))
+  def checkPiSubtype(context: Context, subtype: Type): Maybe[Unit] = if (this.validPiSubtype(context, subtype)) Right(()) else Left(ErrWeakSubtype(this, subtype))
 
-  def checkPiSubtype(subtype: Type): Maybe[Unit] = if (this.validPiSubtype(subtype)) Right(()) else Left(ErrWeakSubtype(this, subtype))
-
-  def subsetOrEqual(other: Type): Boolean = universe.alpha_beta_eta_equals(other.universe) && (attrs.alpha_beta_eta_equals(other.attrs) || attrs.merge(other.attrs).alpha_beta_eta_equals(attrs))
+  def subsetOrEqual(context: Context, other: Type): Boolean = universe.propEq(context, other.universe) && (attrs.propEq(context, other.attrs) || attrs.merge(other.attrs).propEq(context, attrs))
 
   def upperUniverse: Type = Type(Cores.Universe(), attrs.upper)
 
@@ -903,12 +890,14 @@ object Cores {
 
   // a Var might be checked serval times, so I invited this class for usage checking
   final case class AccessVar(id: Option[UniqueIdentifier], v: Var) extends Core {
-    override def alpha_beta_eta_equals(other: Core, map: AlphaMapping): Boolean = other match {
-      case AccessVar(_, v2) => map.has(v, v2)
+    override def propositionalEquals(other: Equality)(implicit context: Context, mapping: AlphaMapping): Boolean = other match {
+      case AccessVar(_, v2) => mapping.has(v, v2)
       case _ => false
     }
 
     override def scan: List[Core] = List()
+
+    override def scanEquality: List[Equality] = throw new UnsupportedOperationException()
 
     override def subst(s: Subst): Core = s.getOrElse(this.v, this)
 
@@ -987,7 +976,7 @@ object Cores {
       Right(Type(x, Attrs.Base))
     })
 
-    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = if (t.universe.alpha_beta_eta_equals(Kind())) {
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = if (t.universe.propEq(context, Kind())) {
       x.check(context, Type(Universe(), t.attrs))
     } else {
       Left(ErrCheckFailed(context, t, this, Kind()))
@@ -1069,11 +1058,11 @@ object Cores {
     override def impl_check(context: Context, t: Type): MaybeSt[Unit] = t.universe.reducingMatch(context, {
       case Sigma(a, id, d) => for {
         aT <- a.evalToType(context)
-        _ <- t.checkPlainSubtype(aT).l
+        _ <- t.checkPlainSubtype(context, aT).l
         _ <- x.check(context, aT)
         innerContext = context.updated(id, aT, x)
         dT <- d.evalToType(innerContext)
-        _ <- t.checkPlainSubtype(dT).l
+        _ <- t.checkPlainSubtype(context, dT).l
         _ <- y.check(innerContext, dT)
       } yield ()
       case wrong => MaybeStErr(ErrExpected(context, "Sigma", this, wrong))
@@ -1123,16 +1112,16 @@ object Cores {
       case Pi(arg0, id, result0) => for {
         _ <- Recs.checkRecWithoutCheck(context, t, this)
         argT <- arg0.evalToType(context)
-        _ <- t.checkPiSubtype(argT).l
+        _ <- t.checkPiSubtype(context, argT).l
         innerContext = context.updated(arg, argT).updated(id, argT, AccessVar.internal(arg))
         resultT <- result0.evalToType(innerContext)
-        _ <- t.checkPiSubtype(resultT).l
+        _ <- t.checkPiSubtype(context, resultT).l
         _ <- body.check(innerContext, resultT)
       } yield ()
       case RecPi(arg0, id, result0) => for {
         _ <- Recs.checkRecWithoutCheck(context, t, this)
         argT <- arg0.evalToType(context)
-        _ <- t.checkPiSubtype(argT).l
+        _ <- t.checkPiSubtype(context, argT).l
         recSize <- (argT.attrs.size match {
           case AttrSize_Known(x) => x.reducingMatch(context, {
             case Succ(x) => MaybeSt.pure(x)
@@ -1142,7 +1131,7 @@ object Cores {
         }): MaybeSt[Core]
         innerContext = context.updated(arg, argT).updated(id, argT, AccessVar.internal(arg)).setRecSize(recSize)
         resultT <- result0.evalToType(innerContext)
-        _ <- t.checkPiSubtype(resultT).l
+        _ <- t.checkPiSubtype(context, resultT).l
         _ <- body.check(innerContext, resultT)
       } yield ()
       case wrong => MaybeStErr(ErrExpected(context, "Pi", this, wrong))
