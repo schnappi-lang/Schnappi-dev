@@ -249,6 +249,10 @@ sealed trait AlphaEtaEqual {
 
 // uses VarId
 type Subst = HashMap[Cores.Var, Core]
+object Subst {
+  def apply(v: Cores.Var, x: Core): Subst = HashMap((v, x))
+  def apply(v: Cores.Var, t: Type, x: Core): Subst = HashMap((v, Cores.InternalThe(t, x)))
+}
 
 sealed trait Core {
   def subst(s: Subst): Core
@@ -257,9 +261,9 @@ sealed trait Core {
 
   def scan: List[Core]
 
-  final def subst(v: Cores.Var, x: Core): Core = this.subst(HashMap((v, x)))
+  final def subst(v: Cores.Var, x: Core): Core = this.subst(Subst(v, x))
 
-  final def subst(v: Cores.Var, t: Type, x: Core): Core = this.subst(HashMap((v, Cores.InternalThe(t, x))))
+  final def subst(v: Cores.Var, t: Type, x: Core): Core = this.subst(Subst(v,t,x))
 
   def alpha_beta_eta_equals(other: Core, map: AlphaMapping): Boolean = this == other
 
@@ -1269,7 +1273,7 @@ object Cores {
         argK <- argT.evalToType(context)
         _ <- x.check(context, argK)
         resultK <- resultT.evalToType(context.updated(tid, argK, x))
-      } yield resultK
+      } yield resultK.subst(Subst(tid, argK, x))
       case RecPi(argT, tid, resultT) => for {
         argK <- argT.evalToType(context)
         argK0 = context.getRecSize match {
@@ -1278,7 +1282,7 @@ object Cores {
         }
         _ <- x.check(context, argK)
         resultK <- resultT.evalToType(context.updated(tid, argK, x))
-      } yield resultK
+      } yield resultK.subst(Subst(tid, argK, x))
       case wrong => MaybeStErr(ErrExpected(context, "Pi", f, wrong))
     }))
   }
