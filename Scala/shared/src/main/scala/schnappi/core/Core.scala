@@ -249,8 +249,10 @@ sealed trait AlphaEtaEqual {
 
 // uses VarId
 type Subst = HashMap[Cores.Var, Core]
+
 object Subst {
   def apply(v: Cores.Var, x: Core): Subst = HashMap((v, x))
+
   def apply(v: Cores.Var, t: Type, x: Core): Subst = HashMap((v, Cores.InternalThe(t, x)))
 }
 
@@ -263,8 +265,9 @@ sealed trait Core {
 
   final def subst(v: Cores.Var, x: Core): Core = this.subst(Subst(v, x))
 
-  final def subst(v: Cores.Var, t: Type, x: Core): Core = this.subst(Subst(v,t,x))
+  final def subst(v: Cores.Var, t: Type, x: Core): Core = this.subst(Subst(v, t, x))
 
+  // todo: fix equal - add the context argument
   def alpha_beta_eta_equals(other: Core, map: AlphaMapping): Boolean = this == other
 
   final def alpha_beta_eta_equals(other: Core): Boolean = this.alpha_beta_eta_equals(other, AlphaMapping.Empty)
@@ -647,7 +650,7 @@ final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfU
 
   def getPlainSubtype(context: Context): Maybe[Attrs] = size.getPlainSubtype(context).map(Attrs(level, _, usage, selfUsage, assumptions, diverge))
 
-  def validWeakSubtype(subtype: Attrs): Boolean = this.level.merge(subtype.level).alpha_beta_eta_equals(this.level)
+  def validPiSubtype(subtype: Attrs): Boolean = this.level.merge(subtype.level).alpha_beta_eta_equals(this.level)
 
   def alpha_beta_eta_equals(other: Attrs, map: AlphaMapping): Boolean =
     level.alpha_beta_eta_equals(other.level, map) &&
@@ -696,11 +699,11 @@ final case class Type(universe: Core, attrs: Attrs) extends Core {
 
   def validPlainSubtype(subtype: Type): Boolean = attrs.validPlainSubtype(subtype.attrs)
 
-  def validWeakSubtype(subtype: Type): Boolean = attrs.validWeakSubtype(subtype.attrs)
+  def validPiSubtype(subtype: Type): Boolean = attrs.validPiSubtype(subtype.attrs)
 
   def checkPlainSubtype(subtype: Type): Maybe[Unit] = if (this.validPlainSubtype(subtype)) Right(()) else Left(ErrPlainSubtype(this, subtype))
 
-  def checkWeakSubtype(subtype: Type): Maybe[Unit] = if (this.validWeakSubtype(subtype)) Right(()) else Left(ErrWeakSubtype(this, subtype))
+  def checkPiSubtype(subtype: Type): Maybe[Unit] = if (this.validPiSubtype(subtype)) Right(()) else Left(ErrWeakSubtype(this, subtype))
 
   def subsetOrEqual(other: Type): Boolean = universe.alpha_beta_eta_equals(other.universe) && (attrs.alpha_beta_eta_equals(other.attrs) || attrs.merge(other.attrs).alpha_beta_eta_equals(attrs))
 
@@ -1103,16 +1106,16 @@ object Cores {
       case Pi(arg0, id, result0) => for {
         _ <- Recs.checkRecWithoutCheck(context, t, this)
         argT <- arg0.evalToType(context)
-        _ <- t.checkWeakSubtype(argT).l
+        _ <- t.checkPiSubtype(argT).l
         innerContext = context.updated(arg, argT).updated(id, argT, AccessVar.internal(arg))
         resultT <- result0.evalToType(innerContext)
-        _ <- t.checkWeakSubtype(resultT).l
+        _ <- t.checkPiSubtype(resultT).l
         _ <- body.check(innerContext, resultT)
       } yield ()
       case RecPi(arg0, id, result0) => for {
         _ <- Recs.checkRecWithoutCheck(context, t, this)
         argT <- arg0.evalToType(context)
-        _ <- t.checkWeakSubtype(argT).l
+        _ <- t.checkPiSubtype(argT).l
         recSize <- (argT.attrs.size match {
           case AttrSize_Known(x) => x.reducingMatch(context, {
             case Succ(x) => MaybeSt.pure(x)
@@ -1122,7 +1125,7 @@ object Cores {
         }): MaybeSt[Core]
         innerContext = context.updated(arg, argT).updated(id, argT, AccessVar.internal(arg)).setRecSize(recSize)
         resultT <- result0.evalToType(innerContext)
-        _ <- t.checkWeakSubtype(resultT).l
+        _ <- t.checkPiSubtype(resultT).l
         _ <- body.check(innerContext, resultT)
       } yield ()
       case wrong => MaybeStErr(ErrExpected(context, "Pi", this, wrong))
@@ -1245,6 +1248,7 @@ object Cores {
     } yield ()
   }
 
+  // todo: check usage and diverge
   final case class Apply(f: Core, x: Core) extends CoreNeu {
     override def scan: List[Core] = List(f, x)
 
