@@ -47,6 +47,7 @@ object Parser {
       f1("makeKind").map(MakeKind(_)),
       f2("withAttrSizeFinite").map(WithAttrSizeFinite(_, _)),
       f1("withAttrSizeUnknownFinite").map(WithAttrSizeUnknownFinite(_)),
+      f2("withAttrLevel").map(WithAttrLevel(_, _)),
       f2("cons").map(Cons(_, _)),
       f1("car").map(Car(_)),
       f1("cdr").map(Cdr(_)),

@@ -668,6 +668,8 @@ final case class Attrs(level: AttrLevel, size: AttrSize, usage: AttrUsage, selfU
   def typeInType: Attrs = Attrs(AttrLevel_UniverseInUniverse(), size, usage, selfUsage, assumptions, diverge)
 
   def setUsage(x: AttrUsage): Attrs = Attrs(level, size, x, selfUsage, assumptions, diverge)
+
+  def setLevel(x: AttrLevel): Attrs = Attrs(x, size, usage, selfUsage, assumptions, diverge)
 }
 
 object Attrs {
@@ -771,6 +773,10 @@ object Exps {
 
   final case class WithAttrSizeUnknownFinite(kind: Exp) extends Exp {
     override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithAttrSizeUnknownFinite(kind.toCore(scope))
+  }
+
+  final case class WithAttrLevel(level: Exp, kind: Exp) extends Exp {
+    override def toCore(scope: HashMap[Identifier, VarId]): Core = Cores.WithAttrLevel(level.toCore(scope), kind.toCore(scope))
   }
 
   final case class Cons(x: Exp, y: Exp) extends Exp {
@@ -954,9 +960,11 @@ object Cores {
 
     override def impl_check(context: Context, t: Type): MaybeSt[Unit] = size.check(context, NatUnknownFiniteErased) and kind.check(context, KindInfiniteErased) and kind.check(context, t)
 
-    override def evalToType(context: Context): MaybeSt[Type] = (size.check(context, NatUnknownFiniteErased) and kind.check(context, KindInfiniteErased)).flatMap(_ => {
-      kind.evalToType(context).map(_.sized(size))
-    })
+    override def evalToType(context: Context): MaybeSt[Type] = for {
+      _ <- size.check(context, NatUnknownFiniteErased)
+      _ <- kind.check(context, KindInfiniteErased)
+      x <- kind.evalToType(context).map(_.sized(size))
+    } yield x
   }
 
   final case class WithAttrSizeUnknownFinite(kind: Core) extends Core with CoreKind {
@@ -970,6 +978,20 @@ object Cores {
       _ <- kind.check(context, KindInfiniteErased)
       x <- kind.evalToType(context)
     } yield x.attrsMap(_.unknownFiniteSized)
+  }
+
+  final case class WithAttrLevel(level: Core, kind: Core) extends Core with CoreKind {
+    override def scan: List[Core] = List(level, kind)
+
+    override def subst(s: Subst): WithAttrLevel = WithAttrLevel(level.subst(s), kind.subst(s))
+
+    override def impl_check(context: Context, t: Type): MaybeSt[Unit] = level.check(context, NatUnknownFiniteErased) and kind.check(context, KindInfiniteErased) and kind.check(context, t)
+
+    override def evalToType(context: Context): MaybeSt[Type] = for {
+      _ <- level.check(context, NatUnknownFiniteErased)
+      _ <- kind.check(context, KindInfiniteErased)
+      x <- kind.evalToType(context).map(_.attrsMap(_.setLevel(AttrLevel_Known(level))))
+    } yield x
   }
 
   final case class Cons(x: Core, y: Core) extends Core {
