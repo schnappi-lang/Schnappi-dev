@@ -4,7 +4,7 @@ import matchers._
 import org.scalatest.funspec.AnyFunSpec
 import schnappi.core._
 
-def infer(x:String) = parseThrows(x).toCore.infer
+def infer(x: String) = parseThrows(x).toCore.infer
 
 final class Test extends AnyFunSpec {
   describe("basic") {
@@ -22,7 +22,7 @@ final class Test extends AnyFunSpec {
       assert(infer("(the (withAttrSizeFinite zero (makeKind (sigma (makeKind nat) (var _) (makeKind nat)))) (cons zero zero))").isLeft)
       assert(infer("(the (withAttrSizeFinite (succ zero) (makeKind (sigma (makeKind nat) (var _) (makeKind nat)))) (cons zero zero))").isRight)
       assert(infer("(pi (withAttrLevel (succ zero) (makeKind universe)) (var t) (pi (withAttrSizeUnknownFinite (makeKind (var t))) (var _) (withAttrSizeUnknownFinite (makeKind (var t)))))").isRight)
-      
+      assert(infer("(the (withAttrLevel (succ zero) (makeKind (pi (withAttrLevel (succ zero) (makeKind universe)) (var t) (pi (withAttrSizeUnknownFinite (makeKind (var t))) (var _) (withAttrSizeUnknownFinite (makeKind (var t))))))) (lambda (var _) (lambda (var x) (var x))))").isRight)
     }
   }
 }

@@ -211,8 +211,10 @@ object Context {
 final case class AlphaMapping(inner: HashMap[VarId, VarId], reverseMap: HashMap[VarId, VarId]) {
   def has(a: VarId, b: VarId): Boolean = inner.get(a) match {
     case Some(b0) => b == b0
-    case None => false
+    case None => a == b
   }
+
+  def has(a: Cores.Var, b: Cores.Var): Boolean = this.has(a.x, b.x)
 
   def add(a: VarId, b: VarId): AlphaMapping = inner.get(a) match {
     case Some(b0) => if (b == b0) this else throw Error("duplicate")
@@ -867,6 +869,11 @@ object Cores {
 
   // a Var might be checked serval times, so I invited this class for usage checking
   final case class AccessVar(id: Option[UniqueIdentifier], v: Var) extends Core {
+    override def alpha_beta_eta_equals(other: Core, map: AlphaMapping): Boolean = other match {
+      case AccessVar(_, v2) => map.has(v, v2)
+      case _ => false
+    }
+
     override def scan: List[Core] = List()
 
     override def subst(s: Subst): Core = s.getOrElse(this.v, this)
